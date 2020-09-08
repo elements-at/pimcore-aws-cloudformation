@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Aurora serverless bastion
+Parameters:
+  UniqueAppName:
+    Type: String
+  VpcId:
+   Type: AWS::EC2::VPC::Id
+  VpcSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public Subnet Id
+  BastionImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-ebs
+
+Resources:
+  PimcoreBastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AWS::StackName}-securitygroup
+      GroupDescription: !Sub Bastion Security Group for ${AWS::StackName}
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # Test - accept SSH for SSM Agent
+        - CidrIp: 0.0.0.0/0
+          Description: Allow from anyone on port 443
+          FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+
+  SSMAgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      #RoleName: !Sub '{UniqueAppName}-ssm-agent-role'
+      AssumeRolePolicyDocument:
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+              - "ec2.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      Path: "/"
+#      Policies:
+#        - !Ref SSMQuickStartPolicy
+
+  SSMInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties:
+        Roles:
+          - !Ref SSMAgentRole
+
+  SSMQuickStartPolicy:
+    Type: 'AWS::IAM::Policy'
+    DependsOn:
+      - SSMAgentRole
+    Properties:
+      PolicyName: !Sub '${UniqueAppName}-bastion-quickstart'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              #- sts:AssumeRole
+              - ssm:*
+              - ssmmessages:*
+              - ec2messages:*
+            Resource: '*'
+      Roles:
+        - !Ref SSMAgentRole
+
+  PimcoreBastion:
+    Type: AWS::EC2::Instance
+    Properties:
+      DisableApiTermination: false
+      ImageId: !Ref BastionImageId
+      InstanceType: t2.micro
+      Monitoring: false
+      IamInstanceProfile: !Ref SSMInstanceProfile
+      SecurityGroupIds:
+        - !Ref VpcSecurityGroupId
+        - !Ref PimcoreBastionSecurityGroup
+      SubnetId: !Ref SubnetId
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}
+      UserData:
+        Fn::Base64: "
+        #!/bin/bash
+        cd /tmp;
+        sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm;
+        sudo systemctl enable amazon-ssm-agent;
+        sudo systemctl start amazon-ssm-agent;
+        sudo yum install -y mysql
+        "

@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Create S3 with CDN and user access."
+Parameters:
+  BucketName:
+    Type: String
+    Description: Name of the Bucket
+  SetupUserArn:
+    Type: String
+    Description: The user account that is going to upload the bucket content initially (migration).
+  UploadUserArn:
+    Type: String
+    Description: The user account that is going to upload content.
+Resources:
+
+  pimcoreS3Bucket:
+    Type: AWS::S3::Bucket
+    #DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+      #      Deactivate Bucket Encryption, to avoid replication configuration
+      #      BucketEncryption:
+      #        ServerSideEncryptionConfiguration:
+      #          - ServerSideEncryptionByDefault:
+      #              SSEAlgorithm: AES256
+      BucketName: !Sub '${BucketName}-bucket'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+  #      @see https://docs.amazonaws.cn/en_us/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html#aws-properties-s3-bucket--examples
+  #      ReplicationConfiguration:
+  #        #Role: arn:aws:iam::123456789012:role/replication_role
+  #        Rules:
+  #          - Id: pimcoreS3BucketStorageRule
+  #            Status: Enabled
+  #            Prefix: pimcoreS3BucketPrefix
+  #            Destination:
+  #              Bucket: !Sub '${BucketName}-bucket'
+  #              StorageClass: STANDARD
+
+  pimcoreS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    #DeletionPolicy: Retain
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ForceHTTPS
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub ${ pimcoreS3Bucket.Arn}/*
+              - !Sub ${ pimcoreS3Bucket.Arn}
+            Condition:
+              Bool:
+                "aws:SecureTransport": false
+          - Sid: PermitCDN
+            Effect: Allow
+            Principal:
+              AWS: !Join [ "", [ "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ", !Ref pimcoreCDNOriginAccessId ] ]
+            Action: s3:GetObject
+            Resource:
+              - !Sub ${pimcoreS3Bucket.Arn}/*
+              - !Sub ${pimcoreS3Bucket.Arn}
+          - Sid: PimcoreUserAccess
+            Effect: Allow
+            Principal:
+              - AWS: !Sub '${UploadUserArn}'
+              - AWS: !Sub '${SetupUserArn}'
+            Action: 's3:*'
+            Resource:
+              - !Sub ${ pimcoreS3Bucket.Arn}/*
+              - !Sub ${ pimcoreS3Bucket.Arn}
+      Bucket: !Ref pimcoreS3Bucket
+
+  pimcoreS3BucketAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: !Sub
+        - Grants CRUD access to the S3 bucket ${Bucket}
+        - { Bucket: !Ref pimcoreS3Bucket }
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: S3ObjectActions
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:PutObjectACL
+              - s3:PutObjectTagging
+              - s3:DeleteObject
+              - s3:RestoreObject
+            Resource: !Sub ${ pimcoreS3Bucket.Arn}/*
+          - Sid: S3ListAction
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !Sub ${ pimcoreS3Bucket.Arn}
+
+  pimcoreCDNOriginAccessId:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'Origin Access Id (OAI) for ${BucketName}-bucket.s3.amazonaws.com.'
+
+  pimcoreCDN:
+    # @see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-cloudfront.html
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - Id: !Sub 's3-${BucketName}'
+            DomainName: !Sub '${BucketName}-bucket.s3.amazonaws.com'
+            S3OriginConfig:
+              OriginAccessIdentity: !Join [ "", [ "origin-access-identity/cloudfront/", !Ref pimcoreCDNOriginAccessId ] ]
+        Enabled: true
+        Comment: 'CDN Comment'
+        DefaultCacheBehavior:
+          TargetOriginId: !Sub 's3-${BucketName}'
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: "none"
+          ViewerProtocolPolicy: redirect-to-https
+    # improvements: install custom error pages instead of delivering XML when resources are not existing?
+Outputs:
+  PimcoreCloudFrontURL:
+    Description: "CDN URL"
+    Value: !GetAtt pimcoreCDN.DomainName
+  PimcoreS3BucketArn:
+    Description: "The name of the S3 bucket"
+    Value: !GetAtt pimcoreS3Bucket.Arn
+  PimcoreS3BucketName:
+    Description: "The name of the S3 bucket"
+    Value: !Sub '${BucketName}-bucket'

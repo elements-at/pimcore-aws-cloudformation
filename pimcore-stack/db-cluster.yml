@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: RDS cluster with writer and reader instance
+
+Parameters:
+  SubnetId1:
+    Type: AWS::EC2::Subnet::Id
+  SubnetId2:
+    Type: AWS::EC2::Subnet::Id
+  VpcSecurityGroupId:
+    Type: String
+    Description: The VPC of the ECS cluster.
+
+  DatabaseUser:
+    Default: pimcoreadmin
+    Type: String
+    Description: Database admin account name
+
+  DatabasePassword:
+    NoEcho: true
+    Type: String
+    MinLength: 6
+    MaxLength: 41
+
+  DatabaseName:
+    Default: PimcoreDB
+    Type: String
+    Description: Database name
+    MinLength: 1
+    MaxLength: 30
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: Name must begin with a letter and contain only alphanumeric characters
+
+  DatabaseEngine:
+    Default: aurora
+    Type: String
+    Description: Database engines - Aurora MySQL or Aurora PostgreSQL
+    ConstraintDescription: Choose an engine from the drop down
+    AllowedValues:
+      - aurora
+      - aurora-postgresql
+
+  ActivateReadReplica:
+    Type: String
+    Default: false
+
+  EncryptionAtRest:
+    Default: false
+    Type: String
+    Description: The optional flag for encryption at rest (db.t2.small and above)
+    ConstraintDescription: Only true or false are allowed
+    AllowedValues:
+      - true
+      - false
+
+  DatabaseInstanceClass:
+    Default: db.t2.small
+    Type: String
+    Description: "Database instance class, e.g. db.t2.micro (free tier) - Engine support: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html"
+    ConstraintDescription: DB instance class not supported
+    AllowedValues:
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.xlarge
+      - db.r4.large
+      - db.r4.xlarge
+      - db.r4.2xlarge
+      - db.r4.4xlarge
+      - db.r4.8xlarge
+      - db.r4.16xlarge
+
+  AllocatedStorage:
+    Default: '7'
+    Type: String
+    Description: The size of the database (GiB)
+
+Conditions:
+  ActivateReadReplica: !Equals [ !Ref ActivateReadReplica, true ]
+Resources:
+
+#  # @see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-secretsmanager-secret.html
+#  PimcoreRDSMasterSecret:
+#    Type: 'AWS::SecretsManager::Secret'
+#    Properties:
+#      Name: !Sub '${UniqueAppName}-master-secret'
+#      Description: "This secret has a dynamically generated secret password."
+#      GenerateSecretString:
+#        SecretStringTemplate: !Sub '{"username": "${MasterUsername}"}'
+#        GenerateStringKey: "password"
+#        PasswordLength: 30
+#        ExcludeCharacters: '"@/\'
+#      Tags:
+#        - Key: Name
+#          Value: !Sub '${UniqueAppName}-master-secret'
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Database subnet group
+      SubnetIds:
+        - !Ref SubnetId1
+        - !Ref SubnetId2
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  PimcoreRDSDBClusterParameterGroup:
+    Type: "AWS::RDS::DBClusterParameterGroup"
+    Properties:
+      Description: "CloudFormation Sample Aurora Cluster Parameter Group"
+      #Family: mysql5.6 #mariadb10.4 # call aws rds describe-db-engine-versions --query "DBEngineVersions[].DBParameterGroupFamily" to see all parameters
+      Family: aurora5.6
+      Parameters:
+        # @see https://pimcore.com/docs/6.x/Development_Documentation/Installation_and_Upgrade/System_Requirements.html#page_System-Variables
+        innodb_file_format: Barracuda
+        innodb_large_prefix: 1
+        innodb_file_per_table: 1
+        # @see https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.Concepts.MySQL.html#USER_LogAccess.MySQL.Generallog
+        slow_query_log: 1
+        long_query_time: 5
+        log_queries_not_using_indexes: 0
+        general_log: 0
+
+  PimcoreDbCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: !Ref DatabaseEngine
+      MasterUsername: !Ref DatabaseUser
+      MasterUserPassword: !Ref DatabasePassword
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      StorageEncrypted: !Ref EncryptionAtRest
+      DatabaseName: !Ref DatabaseName
+      DeletionProtection: false
+      #BackupRetentionPeriod: 1
+      DBClusterParameterGroupName: !Ref PimcoreRDSDBClusterParameterGroup #!If [ IsAuroraMySQL,  default.aurora5.6, default.aurora-postgresql9.6 ]
+      VpcSecurityGroupIds:
+        - !Ref VpcSecurityGroupId
+    DependsOn: DatabaseSubnetGroup
+
+  PimcoreDBWriterInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: !Ref DatabaseEngine
+      DBClusterIdentifier: !Ref PimcoreDbCluster
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      StorageEncrypted: !Ref EncryptionAtRest
+      #DBParameterGroupName: !If [ IsAuroraMySQL,  default.aurora5.6, default.aurora-postgresql9.6 ]
+      CopyTagsToSnapshot: true
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+    DependsOn: PimcoreDbCluster
+
+  PimcoreDBReaderInstance:
+    Type: AWS::RDS::DBInstance
+    Condition: ActivateReadReplica
+    Properties:
+      Engine: !Ref DatabaseEngine
+      DBClusterIdentifier: !Ref PimcoreDbCluster
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      StorageEncrypted: !Ref EncryptionAtRest
+
+      #DBParameterGroupName: !If [ IsAuroraMySQL,  default.aurora5.6, default.aurora-postgresql9.6 ]
+      CopyTagsToSnapshot: true
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+    DependsOn: PimcoreDbCluster
+Outputs:
+  DbPrimaryEndpoint:
+    Value: !GetAtt PimcoreDBWriterInstance.Endpoint.Address
+  DbPrimaryPort:
+    Value: !GetAtt PimcoreDBWriterInstance.Endpoint.Port
+  DbReadEndpoint:
+    Value: !If [ ActivateReadReplica, !GetAtt PimcoreDBReaderInstance.Endpoint.Address, '' ]
+  DbReadPort:
+    Value: !If [ ActivateReadReplica, !GetAtt PimcoreDBReaderInstance.Endpoint.Port, 0 ]
+  DbName:
+    Value: !Ref DatabaseName
+  DbUser:
+    Value: !Ref DatabaseUser

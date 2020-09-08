@@ -1,0 +1,251 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Empty ECS cluster"
+
+Parameters:
+  UniqueAppName:
+    Type: String
+  DockerImage:
+    Type: String
+    Default: 414501751304.dkr.ecr.eu-central-1.amazonaws.com/pimcore-demo:latest # amazon/amazon-ecs-sample
+  S3BucketName:
+    Type: String
+  CloudfrontURL:
+    Type: String
+  RedisCacheHost:
+    Type: String
+  RedisSessionHost:
+    Type: String
+  DbPrimaryEndpoint:
+    Type: String
+  DbPrimaryPort:
+    Type: Number
+    Default: 3306
+  DbReadEndpoint:
+    Type: String
+  DbReadPort:
+    Type: Number
+    Default: 3306
+  DbName:
+    Type: String
+  DbUser:
+    Type: String
+  DbPassword:
+    Type: String
+    NoEcho: true
+  Cpu:
+    Type: Number
+    Default: 256
+  Memory:
+    Type: Number
+    Default: 512
+  DesiredPimcoreInstances:
+    Type: Number
+    Default: 1 #just for testings
+
+  Subnet1:
+    Type: String
+  Subnet2:
+    Type: String
+  SecurityGroup1:
+    Type: String
+
+  TaskExecutionRoleArn:
+    Type: String
+  TaskRoleArn:
+    Type: String
+
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${UniqueAppName}-ecs-cluster'
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/pimcore/${UniqueAppName}/ecs'
+      RetentionInDays: 7
+
+  TaskDefinitionPimcoreFrontend:
+    Type: AWS::ECS::TaskDefinition
+    Description: 'Pimcore ECS Fargate Frontend Container Task Description'
+    Properties:
+      RequiresCompatibilities:
+        - "FARGATE"
+      NetworkMode: "awsvpc"
+      Family: !Sub 'pimcore-frontend-${UniqueAppName}'
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      ContainerDefinitions:
+        - Name: !Sub "${UniqueAppName}-task-definition"
+          Image: !Ref DockerImage
+          Environment:
+            - Name: CLI_ENABLED # important
+              Value: true
+            - Name: MYSQL_HOST
+              Value: !Ref DbPrimaryEndpoint
+            - Name: MYSQL_DATABASE
+              Value: !Ref DbName
+            - Name: MYSQL_USER
+              Value: !Ref DbUser
+            - Name: MYSQL_PASSWORD #improvement: use secrets manager instead. -> in private subnet though
+              Value: !Ref DbPassword
+            - Name: MYSQL_PORT
+              Value: !Ref DbPrimaryPort
+            - Name: REDIS_CACHE_HOST
+              Value: !Ref RedisCacheHost
+            - Name: REDIS_CACHE_PORT
+              Value: 6379
+            - Name: REDIS_SESSION_HOST
+              Value: !Ref RedisSessionHost
+            - Name: REDIS_SESSION_PORT
+              Value: 6379
+            - Name: CLOUDFRONT_URL
+              Value: !Ref CloudfrontURL
+            - Name: S3_ENABLED
+              Value: true
+            - Name: S3_BUCKET
+              Value: !Ref S3BucketName
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Sub '${UniqueAppName}'
+
+  TaskDefinitionPimcoreCli:
+    Type: AWS::ECS::TaskDefinition
+    Description: 'Pimcore ECS Fargate CLI Container Task Description'
+    Properties:
+      RequiresCompatibilities:
+        - "FARGATE"
+      NetworkMode: "awsvpc"
+      Family: !Sub 'pimcore-cli-${UniqueAppName}'
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      ContainerDefinitions:
+        - Name: !Sub "${UniqueAppName}-task-definition"
+          Image: !Ref DockerImage
+          Environment:
+            - Name: CLI_ENABLED # important
+              Value: true
+            - Name: MYSQL_HOST
+              Value: !Ref DbPrimaryEndpoint
+            - Name: MYSQL_DATABASE
+              Value: !Ref DbName
+            - Name: MYSQL_USER
+              Value: !Ref DbUser
+            - Name: MYSQL_PASSWORD #improvement: use secrets manager instead. -> in private subnet though
+              Value: !Ref DbPassword
+            - Name: MYSQL_PORT
+              Value: !Ref DbPrimaryPort
+            - Name: REDIS_CACHE_HOST
+              Value: !Ref RedisCacheHost
+            - Name: REDIS_CACHE_PORT
+              Value: 6379
+            - Name: REDIS_SESSION_HOST
+              Value: !Ref RedisSessionHost
+            - Name: REDIS_SESSION_PORT
+              Value: 6379
+            - Name: CLOUDFRONT_URL
+              Value: !Ref CloudfrontURL
+            - Name: S3_ENABLED
+              Value: true
+            - Name: S3_BUCKET
+              Value: !Ref S3BucketName
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+            - ContainerPort: 22 # SSH
+              HostPort: 22
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Sub '${UniqueAppName}'
+
+#  FrontendServices:
+#    Type: AWS::ECS::Service
+#    Properties:
+#      Cluster:
+#        Ref: Cluster
+#      DesiredCount: !Ref DesiredPimcoreInstances
+#      LaunchType: FARGATE
+#      NetworkConfiguration:
+#        AwsvpcConfiguration:
+#          AssignPublicIp: DISABLED
+#          SecurityGroups:
+#            - !Ref SecurityGroup1
+#          Subnets:
+#            - !Ref Subnet1
+#            - !Ref Subnet2
+#      TaskDefinition:
+#        Ref: TaskDefinitionPimcoreFrontend
+
+#  CliTaskSet:
+#    Type: AWS::ECS::TaskSet
+#    Properties:
+#      Cluster: !Ref Cluster
+#      ExternalId: !Sub '${UniqueAppName}-cli-taskset'
+#      LaunchType: FARGATE
+##      LoadBalancers:
+##        - ContainerName: String
+##          ContainerPort: Integer
+##          LoadBalancerName: String
+##          TargetGroupArn: String
+#      NetworkConfiguration:
+#        AwsvpcConfiguration:
+#          AssignPublicIp: ENABLED #DISABLED
+#          SecurityGroups:
+#            - !Ref SecurityGroup1
+#          Subnets:
+#            - !Ref Subnet1
+#            - !Ref Subnet2
+#      #Scale:
+#      Service: !Ref CliService
+#      TaskDefinition: !Ref TaskDefinitionPimcoreCli
+
+#  CliService:
+#    Type: AWS::ECS::Service
+#    Properties:
+#      Cluster:
+#        Ref: Cluster
+#      DesiredCount: 1
+#      DeploymentController:
+#        Type: EXTERNAL
+#      LaunchType: FARGATE
+#      NetworkConfiguration:
+#        AwsvpcConfiguration:
+#          AssignPublicIp: ENABLED #DISABLED
+#          SecurityGroups:
+#            - !Ref SecurityGroup1
+#          Subnets:
+#            - !Ref Subnet1
+#            - !Ref Subnet2
+#      TaskDefinition:
+#        Ref: TaskDefinitionPimcoreFrontend
+
+Outputs:
+  ClusterId:
+    Value: !Ref Cluster
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterId
+  TaskDefinitionPimcoreFrontend:
+    Value: !Ref TaskDefinitionPimcoreFrontend
+  TaskDefinitionPimcoreCli:
+    Value: !Ref TaskDefinitionPimcoreCli

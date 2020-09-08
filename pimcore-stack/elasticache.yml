@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Create Pimcore Redis sub stack."
+Parameters:
+  UniqueAppName:
+    Type: String
+  securityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  Subnet1:
+    Type: String
+  Subnet2:
+    Type: String
+
+  # see https://aws.amazon.com/elasticache/pricing/
+  cacheNodeType:
+    Type: String
+    Default: cache.t2.medium
+    Description: Default redis node type size for both cache instance.
+  sessionNodeType:
+    Type: String
+    Default: cache.t2.medium
+    Description: Default redis node type size for session instances.
+Resources:
+  RedisSubnetGroup:
+    Type: 'AWS::ElastiCache::SubnetGroup'
+    Properties:
+      CacheSubnetGroupName: !Sub '${UniqueAppName}-cache-def-subnet-group'
+      Description: Cache Subnet Group inside VPC
+      SubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+  PimcoreRedisCache:
+    Type: 'AWS::ElastiCache::CacheCluster'
+    DependsOn: PimcoreRedisCacheParameterGroup
+    Properties:
+      ClusterName: !Sub '${UniqueAppName}-cache'
+      AutoMinorVersionUpgrade: true
+      Engine: redis
+      CacheNodeType: !Ref cacheNodeType
+      NumCacheNodes: 1
+      CacheParameterGroupName: !Ref PimcoreRedisCacheParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      SnapshotRetentionLimit: 0
+      VpcSecurityGroupIds:
+        - !Ref securityGroupId
+  PimcoreRedisCacheParameterGroup:
+    Type: 'AWS::ElastiCache::ParameterGroup'
+    Properties:
+      Description: Redis Cache Parameter Group Settings
+      CacheParameterGroupFamily: redis5.0
+      Properties: # @see https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/ParameterGroups.Redis.html
+        maxmemory-policy: 'volatile-lru'
+  PimcoreRedisSession:
+    Type: 'AWS::ElastiCache::CacheCluster'
+    DependsOn: PimcoreRedisSessionParameterGroup
+    Properties:
+      ClusterName: !Sub '${UniqueAppName}-sessions'
+      AutoMinorVersionUpgrade: true
+      Engine: redis
+      CacheNodeType: !Ref sessionNodeType
+      NumCacheNodes: 1
+      SnapshotRetentionLimit: 0
+      CacheParameterGroupName: !Ref PimcoreRedisSessionParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref securityGroupId
+  PimcoreRedisSessionParameterGroup:
+    Type: 'AWS::ElastiCache::ParameterGroup'
+    Properties:
+      Description: Redis Session Parameter Group Settings
+      CacheParameterGroupFamily: redis5.0
+      Properties:
+        maxmemory-policy: 'noeviction'
+Outputs:
+  PimcoreRedisCacheEndpoint:
+    Value: !GetAtt PimcoreRedisCache.RedisEndpoint.Address
+  PimcoreSessionCacheEndpoint:
+    Value: !GetAtt PimcoreRedisSession.RedisEndpoint.Address

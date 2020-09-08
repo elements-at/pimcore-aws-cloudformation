@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Create a minimal Pimcore standard stack."
+# @see https://www.trek10.com/blog/cloudformation-nested-stacks-primer
+Parameters:
+  App:
+    Type: String
+    Default: pimcore-app
+    Description: Your application's name.
+  Env:
+    Type: String
+    Description: The environment name your service, job, or workflow is being deployed to.
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - test
+      - production
+
+  DockerImage:
+    Type: String
+    Default: 414501751304.dkr.ecr.eu-central-1.amazonaws.com/pimcore-demo:latest
+
+  DbPassword:
+    Type: String
+    Description: The password for the DB master user.
+    Default: 'pimcore123!'
+    NoEcho: true
+Resources:
+
+  PimcoreUsers:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pimcore-stack/users.yml
+      Parameters:
+        Prefix: !Sub '${App}-${Env}'
+
+  PimcoreS3Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: PimcoreUsers
+    Properties:
+      TemplateURL: pimcore-stack/s3-with-cdn.yml
+      Parameters:
+        BucketName: !Sub '${App}-${Env}'
+        SetupUserArn: !GetAtt PimcoreUsers.Outputs.SetupUserArn
+        UploadUserArn: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskRole
+
+  PimcoreVPC:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: PimcoreUsers
+    Properties:
+      TemplateURL: pimcore-stack/vpc.yml
+      Parameters:
+        UniqueAppName: !Sub '${App}-${Env}'
+
+  PimcoreLoadBalancerResources:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - PimcoreUsers
+      - PimcoreVPC
+    Properties:
+      TemplateURL: pimcore-stack/load-balancer.yml
+      Parameters:
+        UniqueAppName: !Sub '${App}-${Env}'
+        VpcId: !GetAtt PimcoreVPC.Outputs.VpcId
+        Subnet1: !GetAtt PimcoreVPC.Outputs.Subnet1
+        Subnet2: !GetAtt PimcoreVPC.Outputs.Subnet2
+        SecurityGroup1: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
+
+  PimcoreElastiCacheInstancesStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - PimcoreUsers
+      - PimcoreVPC
+    Properties:
+      TemplateURL: pimcore-stack/elasticache.yml
+      Parameters:
+        UniqueAppName: !Sub '${App}-${Env}'
+        Subnet1: !GetAtt PimcoreVPC.Outputs.Subnet1
+        Subnet2: !GetAtt PimcoreVPC.Outputs.Subnet2
+        securityGroupId: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
+        cacheNodeType: cache.t2.medium
+        sessionNodeType: cache.t2.medium
+
+  PimcorDBCluster:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - PimcoreUsers
+      - PimcoreVPC
+    Properties:
+      TemplateURL: pimcore-stack/db-cluster.yml
+      Parameters:
+        DatabasePassword: !Ref DbPassword
+        SubnetId1: !GetAtt PimcoreVPC.Outputs.Subnet1
+        SubnetId2: !GetAtt PimcoreVPC.Outputs.Subnet2
+        VpcSecurityGroupId: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
+      Tags:
+        - Key: Name
+          Value: !Sub '${App}-${Env}-rds-stack'
+
+  PimcoreEcsCluster:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - PimcoreUsers
+      - PimcoreVPC
+      - PimcoreS3Stack
+      - PimcoreElastiCacheInstancesStack
+      - PimcorDBCluster
+    Properties:
+      TemplateURL: pimcore-stack/ecs-cluster.yml
+      Parameters:
+        UniqueAppName: !Sub '${App}-${Env}'
+        RedisCacheHost: !GetAtt PimcoreElastiCacheInstancesStack.Outputs.PimcoreRedisCacheEndpoint
+        RedisSessionHost: !GetAtt PimcoreElastiCacheInstancesStack.Outputs.PimcoreSessionCacheEndpoint
+        CloudfrontURL: !GetAtt PimcoreS3Stack.Outputs.PimcoreCloudFrontURL
+        S3BucketName: !GetAtt PimcoreS3Stack.Outputs.PimcoreS3BucketName
+        DbPrimaryEndpoint: !GetAtt PimcorDBCluster.Outputs.DbPrimaryEndpoint
+        DbPrimaryPort: !GetAtt PimcorDBCluster.Outputs.DbPrimaryPort
+        DbReadEndpoint: !GetAtt PimcorDBCluster.Outputs.DbReadEndpoint
+        DbReadPort: !GetAtt PimcorDBCluster.Outputs.DbReadPort
+        DbName: !GetAtt PimcorDBCluster.Outputs.DbName
+        DbUser: !GetAtt PimcorDBCluster.Outputs.DbUser
+        DbPassword: !Ref DbPassword
+
+        Subnet1: !GetAtt PimcoreVPC.Outputs.Subnet1
+        Subnet2: !GetAtt PimcoreVPC.Outputs.Subnet2
+        SecurityGroup1: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
+        TaskExecutionRoleArn: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskExecutionRole
+        TaskRoleArn: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskRole
+
+  PimcoreBastion:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - PimcoreUsers
+      - PimcoreVPC
+    Properties:
+      TemplateURL: pimcore-stack/ec2-bastion.yml
+      Parameters:
+        UniqueAppName: !Sub '${App}-${Env}'
+        VpcId: !GetAtt PimcoreVPC.Outputs.VpcId
+        VpcSecurityGroupId: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
+        SubnetId: !GetAtt PimcoreVPC.Outputs.Subnet1

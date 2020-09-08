@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Create VPC network with subnet configuration."
+Parameters:
+  UniqueAppName:
+    Type: String
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${UniqueAppName}-public-subnet-1'
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.1.0/24
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${UniqueAppName}-public-subnet-2'
+
+#  PrivateSubnet4:
+#    Type: AWS::EC2::Subnet
+#    Properties:
+#      CidrBlock: 10.0.2.0/24
+#      VpcId: !Ref VPC
+#      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+#      MapPublicIpOnLaunch: false
+#      Tags:
+#        - Key: Name
+#          Value: !Sub '${UniqueAppName}-private-subnet-1'
+#
+#  PrivateSubnet3:
+#    Type: AWS::EC2::Subnet
+#    Properties:
+#      CidrBlock: 10.0.3.0/24
+#      VpcId: !Ref VPC
+#      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+#      MapPublicIpOnLaunch: false
+#      Tags:
+#        - Key: Name
+#          Value: !Sub '${UniqueAppName}-private-subnet-2'
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref PrivateSubnet2
+
+# Only accept requests coming from the public ALB or other containers in the same security group.
+  SecurityGroup1:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${UniqueAppName} - Security group 1'
+      VpcId: !Ref VPC
+
+  SecurityGroup1IngressFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress from other containers in the same security group
+      GroupId: !Ref SecurityGroup1
+      IpProtocol: -1
+      SourceSecurityGroupId: !Ref SecurityGroup1
+
+Outputs:
+  VpcId:
+    Value: !Ref VPC
+  Subnet1:
+    Value: !Ref PrivateSubnet1
+  Subnet2:
+    Value: !Ref PrivateSubnet2
+  SecurityGroup1:
+    Value: !Ref SecurityGroup1

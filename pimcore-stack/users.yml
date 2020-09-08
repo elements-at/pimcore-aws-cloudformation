@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'Create users and permissions to access and work with the Pimcore ECS stack.'
+Parameters:
+  Prefix:
+    Type: String
+    Description: 'Prefix for user permissions to avoid conflicts with other stacks. Must be numeric.'
+Resources:
+
+  # @see https://policysim.aws.amazon.com/ for simulating policies
+  # Currently has permissions to execute copilot and perform cloudformation deployments
+  SetupUser:
+    Type: 'AWS::IAM::User'
+
+  SetupUserGroup:
+    Type: 'AWS::IAM::Group'
+    Properties:
+      GroupName: !Sub '${Prefix}-SetupUserGroup'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AWSCloudMapFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+        - arn:aws:iam::aws:policy/AWSLambdaFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
+        - arn:aws:iam::aws:policy/AmazonRDSFullAccess
+        #- arn:aws:iam::aws:policy/SecretsManagerReadWrite
+  AddSetupUserToGroup:
+    Type: 'AWS::IAM::UserToGroupAddition'
+    DependsOn: SetupUserGroup
+    Properties:
+      GroupName: !Sub '${Prefix}-setupUserGroup'
+      Users:
+        - !Ref SetupUser
+  SetupUserAccessKeys:
+    Type: 'AWS::IAM::AccessKey'
+    Properties:
+      UserName:
+        Ref: SetupUser
+  SetupUserPolicy:
+    Type: 'AWS::IAM::Policy'
+    DependsOn:
+        - SetupUserGroup
+    Properties:
+      PolicyName: !Sub '${Prefix}-SetupUserPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+              - secretsmanager:* # test
+            Resource: '*'
+      Groups:
+        - !Sub '${Prefix}-setupUserGroup'
+
+  #
+  # ECS Fargate roles
+  #
+  EcsContainerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+        #- arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+        #- arn:aws:iam::aws:policy/IAMFullAccess
+        #- arn:aws:iam::aws:policy/AWSCloudMapFullAccess
+        #- arn:aws:iam::aws:policy/AmazonEC2FullAccess
+        #- arn:aws:iam::aws:policy/AmazonECS_FullAccess
+        #- arn:aws:iam::aws:policy/AWSLambdaFullAccess
+        #- arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
+        - arn:aws:iam::aws:policy/AmazonRDSFullAccess
+      AssumeRolePolicyDocument:
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+              - "lambda.amazonaws.com"
+              - "ecs-tasks.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      Path: "/"
+
+  # # @todo - restrict
+  EcsContainerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AWSCloudMapFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+        - arn:aws:iam::aws:policy/AWSLambdaFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        #- arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
+        #- arn:aws:iam::aws:policy/AmazonRDSFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess #import for the creation of the log group
+      AssumeRolePolicyDocument:
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+              - "lambda.amazonaws.com"
+              - "ecs-tasks.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      Path: "/"
+
+Outputs:
+  SetupUserAccessKey:
+    Description: "Setup User Access Key"
+    Value: !Ref SetupUserAccessKeys
+  SetupUserAccessToken:
+    Description: "Setup User Access token"
+    Value: !GetAtt SetupUserAccessKeys.SecretAccessKey
+  SetupUserArn:
+    Description: "Setup User ARN"
+    Value: !GetAtt SetupUser.Arn
+  EcsContainerTaskExecutionRole:
+    Description: "ECS Fargate Container Task Execution role (will be used on container startup)."
+    Value: !GetAtt EcsContainerExecutionRole.Arn
+  EcsContainerTaskRole:
+    Description: "ECS Fargate Container Task role (will be used for the container application)."
+    Value: !GetAtt EcsContainerRole.Arn
