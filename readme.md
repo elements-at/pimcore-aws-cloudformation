@@ -1,27 +1,33 @@
 # Pimcore AWS Cloudformation Template
 
-### This repository provides a cloudformation template with nested stacks to spin up a complete Pimcore application stack in ECS.
+This repository provides a cloudformation template with nested stacks to spin up a complete Pimcore application stack in ECS.
 
-Parts
- - ...
+Nested Stacks:
+ - ``Users`` IAM users for setup and ECS task execution.
+ - ``S3 Stack`` S3 bucket and CDN, including access configuration for ECS and the CDN.
+ - ``VPC`` VPC configuration with private subnets.
+ - ``Load Balancer`` Load Balancer configuration attached to VPC and prepared for deployment scenarios.
+ - ``Elastic Cache`` Two Redis instances for caching and session management.
+ - ``DB Cluster`` Aurora MySQL DB cluster. Optionally, a read-only DB instance can be activated.
+ - ``ECS Cluster`` Farate ECS cluster with App and CLI task definitions, as the boilerplate for installing tasks and services.
+ - ``Bastion`` EC2 Bastion Host with SSM Agent installed, for accessing and diagnosing private resources inside the VPC.
  
+ ---
  
- ### Questions
+ ### Common Questions
  
- How can I deploy the nested stack?
- 
- The simplest way is to use the ``AWS-CLI`` tool to package the nested templates and upload them to S3:
+How can I deploy the nested stack? 
+The simplest way is to use the ``AWS-CLI`` tool to package the nested templates and upload them to S3:
 
-Example:
  ```
 aws cloudformation package --template-file ${BASE_DIR}/config/cloudformation/pimcoreStack.yml \
      --output-template packagedPimcoreStack.yml \
-     --s3-bucket cloudformationdeployment
+     --s3-bucket my-cloudformationdeployment-bucket
  ```
  
  Use another command to actually start the deployment:
  ```
-aws cloudformation deploy --template-file ${BASE_DIR}/config/cloudformation/packagedPimcoreStack.yml --stack-name car-dev-nextgen --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+aws cloudformation deploy --template-file ${BASE_DIR}/config/cloudformation/packagedPimcoreStack.yml --stack-name my-pimcore-stack-staging --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
  ```
  
  ---
@@ -40,7 +46,7 @@ aws cloudformation deploy --template-file ${BASE_DIR}/config/cloudformation/pack
   ssh-keygen 
  ```
  
- Upload ~./ssh/id_rsa.pub to your EC2 server instance using SSM and add the public key to ~/.ssh/authorized_keys.
+ Upload ``~./ssh/id_rsa.pub`` to your EC2 server instance using SSM and add the public key to ``~/.ssh/authorized_keys``.
  Now you can connect from the client.
  
  Example:
