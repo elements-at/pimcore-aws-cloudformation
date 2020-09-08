@@ -55,3 +55,12 @@ aws cloudformation deploy --template-file ${BASE_DIR}/config/cloudformation/pack
  ssh -i id_rsa ssm-user@ec2-3-125-43-205.eu-central-1.compute.amazonaws.com
  ```
  
+ ---
+ 
+ ### Deletion
+ 
+ - Delete / stop all ECS cluster services and then delete the entire stack.
+ - Don't delete single nested stacks.
+ - If the stack is pending, then observe if there are resources connected that are not part of the stack and have to be deleted manually.
+ 
+ If resources cannot be deleted, try [AWS Nuke](https://github.com/rebuy-de/aws-nuke).
