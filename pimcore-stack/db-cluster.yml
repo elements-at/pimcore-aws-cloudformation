@@ -3,6 +3,9 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: RDS cluster with writer and reader instance
 
 Parameters:
+  UniqueAppName:
+    Type: String
+
   SubnetId1:
     Type: AWS::EC2::Subnet::Id
   SubnetId2:
@@ -78,20 +81,24 @@ Conditions:
   ActivateReadReplica: !Equals [ !Ref ActivateReadReplica, true ]
 Resources:
 
-#  # @see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-secretsmanager-secret.html
-#  PimcoreRDSMasterSecret:
-#    Type: 'AWS::SecretsManager::Secret'
-#    Properties:
-#      Name: !Sub '${UniqueAppName}-master-secret'
-#      Description: "This secret has a dynamically generated secret password."
-#      GenerateSecretString:
-#        SecretStringTemplate: !Sub '{"username": "${MasterUsername}"}'
-#        GenerateStringKey: "password"
-#        PasswordLength: 30
-#        ExcludeCharacters: '"@/\'
-#      Tags:
-#        - Key: Name
-#          Value: !Sub '${UniqueAppName}-master-secret'
+# @see https://aws.amazon.com/premiumsupport/knowledge-center/users-connect-rds-iam/:
+# create a DB user with IAM authentication
+#
+  # @see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-secretsmanager-secret.html
+  # @todo is not applied yet...
+  PimcoreRDSMasterSecret:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: !Sub '${UniqueAppName}-db-master-secret'
+      Description: "RDS Secret."
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "${DatabaseUser}"}'
+        GenerateStringKey: "password"
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Name
+          Value: !Sub '${UniqueAppName}-master-secret'
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -132,6 +139,7 @@ Resources:
       DatabaseName: !Ref DatabaseName
       DeletionProtection: false
       #BackupRetentionPeriod: 1
+      EnableHttpEndpoint: true # enable Data API
       DBClusterParameterGroupName: !Ref PimcoreRDSDBClusterParameterGroup #!If [ IsAuroraMySQL,  default.aurora5.6, default.aurora-postgresql9.6 ]
       VpcSecurityGroupIds:
         - !Ref VpcSecurityGroupId

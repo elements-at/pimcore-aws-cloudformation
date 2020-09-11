@@ -59,12 +59,28 @@ Resources:
         - Key: Name
           Value: !Sub '${UniqueAppName}-load-balancer-security-group'
 
-  # Assign a dummy target group that with no real services as targets, so that we can create
-  # the listeners for the services.
+  # Assign a default target group for blue/green deployment.
   BlueHttpTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: !Sub '${UniqueAppName}-tg-blue'
+      #  Check if your application is healthy within 20 = 10*2 seconds, compared to 2.5 mins = 30*5 seconds.
+      HealthCheckIntervalSeconds: 10 # Default is 30.
+      HealthyThresholdCount: 2       # Default is 5.
+      HealthCheckTimeoutSeconds: 5
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 300                  # Default is 300.
+      TargetType: ip
+      VpcId: !Ref VpcId
+
+  # Assign an alternate target group for blue/green deployment.
+  GreenHttpTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${UniqueAppName}-tg-green'
       #  Check if your application is healthy within 20 = 10*2 seconds, compared to 2.5 mins = 30*5 seconds.
       HealthCheckIntervalSeconds: 10 # Default is 30.
       HealthyThresholdCount: 2       # Default is 5.
@@ -87,16 +103,16 @@ Resources:
       IpProtocol: -1
       SourceSecurityGroupId: !Ref PublicLoadBalancerSecurityGroup
 
-  # @just a test. The domain still needs to be injected....
-  HTTPSCert:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: pimcore.xyz
-      DomainValidationOptions:
-        - DomainName: pimcore.xyz
-          ValidationDomain: pimcore.xyz
-      SubjectAlternativeNames:
-        - !GetAtt PublicLoadBalancer.DNSName
+#  # @just a test. The domain still needs to be injected....
+#  HTTPSCert:
+#    Type: AWS::CertificateManager::Certificate
+#    Properties:
+#      DomainName: pimcore.xyz
+#      DomainValidationOptions:
+#        - DomainName: pimcore.xyz
+#          ValidationDomain: pimcore.xyz
+#      SubjectAlternativeNames:
+#        - !GetAtt PublicLoadBalancer.DNSName
 
 # see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
 #  # DNS Delegation Resources

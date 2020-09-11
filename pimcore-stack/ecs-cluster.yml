@@ -86,7 +86,7 @@ Resources:
           Image: !Ref DockerImage
           Environment:
             - Name: CLI_ENABLED # important
-              Value: true
+              Value: false
             - Name: MYSQL_HOST
               Value: !Ref DbPrimaryEndpoint
             - Name: MYSQL_DATABASE
@@ -178,68 +178,6 @@ Resources:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: !Sub '${UniqueAppName}'
-
-#  FrontendServices:
-#    Type: AWS::ECS::Service
-#    Properties:
-#      Cluster:
-#        Ref: Cluster
-#      DesiredCount: !Ref DesiredPimcoreInstances
-#      LaunchType: FARGATE
-#      NetworkConfiguration:
-#        AwsvpcConfiguration:
-#          AssignPublicIp: DISABLED
-#          SecurityGroups:
-#            - !Ref SecurityGroup1
-#          Subnets:
-#            - !Ref Subnet1
-#            - !Ref Subnet2
-#      TaskDefinition:
-#        Ref: TaskDefinitionPimcoreFrontend
-
-#  CliTaskSet:
-#    Type: AWS::ECS::TaskSet
-#    Properties:
-#      Cluster: !Ref Cluster
-#      ExternalId: !Sub '${UniqueAppName}-cli-taskset'
-#      LaunchType: FARGATE
-##      LoadBalancers:
-##        - ContainerName: String
-##          ContainerPort: Integer
-##          LoadBalancerName: String
-##          TargetGroupArn: String
-#      NetworkConfiguration:
-#        AwsvpcConfiguration:
-#          AssignPublicIp: ENABLED #DISABLED
-#          SecurityGroups:
-#            - !Ref SecurityGroup1
-#          Subnets:
-#            - !Ref Subnet1
-#            - !Ref Subnet2
-#      #Scale:
-#      Service: !Ref CliService
-#      TaskDefinition: !Ref TaskDefinitionPimcoreCli
-
-#  CliService:
-#    Type: AWS::ECS::Service
-#    Properties:
-#      Cluster:
-#        Ref: Cluster
-#      DesiredCount: 1
-#      DeploymentController:
-#        Type: EXTERNAL
-#      LaunchType: FARGATE
-#      NetworkConfiguration:
-#        AwsvpcConfiguration:
-#          AssignPublicIp: ENABLED #DISABLED
-#          SecurityGroups:
-#            - !Ref SecurityGroup1
-#          Subnets:
-#            - !Ref Subnet1
-#            - !Ref Subnet2
-#      TaskDefinition:
-#        Ref: TaskDefinitionPimcoreFrontend
-
 Outputs:
   ClusterId:
     Value: !Ref Cluster

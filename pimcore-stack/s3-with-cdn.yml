@@ -12,32 +12,17 @@ Parameters:
     Description: The user account that is going to upload content.
 Resources:
 
-  pimcoreS3Bucket:
+  S3Bucket:
     Type: AWS::S3::Bucket
     #DeletionPolicy: Retain
     Properties:
       AccessControl: Private
-      #      Deactivate Bucket Encryption, to avoid replication configuration
-      #      BucketEncryption:
-      #        ServerSideEncryptionConfiguration:
-      #          - ServerSideEncryptionByDefault:
-      #              SSEAlgorithm: AES256
-      BucketName: !Sub '${BucketName}-bucket'
+      BucketName: !Sub '${BucketName}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
-  #      @see https://docs.amazonaws.cn/en_us/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html#aws-properties-s3-bucket--examples
-  #      ReplicationConfiguration:
-  #        #Role: arn:aws:iam::123456789012:role/replication_role
-  #        Rules:
-  #          - Id: pimcoreS3BucketStorageRule
-  #            Status: Enabled
-  #            Prefix: pimcoreS3BucketPrefix
-  #            Destination:
-  #              Bucket: !Sub '${BucketName}-bucket'
-  #              StorageClass: STANDARD
 
-  pimcoreS3BucketPolicy:
+  S3BucketPolicy:
     Type: AWS::S3::BucketPolicy
     #DeletionPolicy: Retain
     Properties:
@@ -49,36 +34,41 @@ Resources:
             Principal: '*'
             Action: 's3:*'
             Resource:
-              - !Sub ${ pimcoreS3Bucket.Arn}/*
-              - !Sub ${ pimcoreS3Bucket.Arn}
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
             Condition:
               Bool:
                 "aws:SecureTransport": false
           - Sid: PermitCDN
             Effect: Allow
             Principal:
-              AWS: !Join [ "", [ "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ", !Ref pimcoreCDNOriginAccessId ] ]
+              AWS: !Join [ "", [ "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ", !Ref CDNOriginAccessId ] ]
             Action: s3:GetObject
             Resource:
-              - !Sub ${pimcoreS3Bucket.Arn}/*
-              - !Sub ${pimcoreS3Bucket.Arn}
-          - Sid: PimcoreUserAccess
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
+          - Sid: UploadUserAccess
             Effect: Allow
             Principal:
-              - AWS: !Sub '${UploadUserArn}'
-              - AWS: !Sub '${SetupUserArn}'
+              AWS: !Sub '${UploadUserArn}'
             Action: 's3:*'
             Resource:
-              - !Sub ${ pimcoreS3Bucket.Arn}/*
-              - !Sub ${ pimcoreS3Bucket.Arn}
-      Bucket: !Ref pimcoreS3Bucket
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
+          - Sid: SetupUserAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub '${SetupUserArn}'
+            Action: 's3:*'
+            Resource:
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
+      Bucket: !Ref S3Bucket
 
-  pimcoreS3BucketAccessPolicy:
+  S3BucketAccessPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      Description: !Sub
-        - Grants CRUD access to the S3 bucket ${Bucket}
-        - { Bucket: !Ref pimcoreS3Bucket }
+      Description: !Sub 'Grants CRUD access to the S3 bucket ${S3Bucket}'
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -91,28 +81,32 @@ Resources:
               - s3:PutObjectTagging
               - s3:DeleteObject
               - s3:RestoreObject
-            Resource: !Sub ${ pimcoreS3Bucket.Arn}/*
+            Resource:
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
           - Sid: S3ListAction
             Effect: Allow
             Action: s3:ListBucket
-            Resource: !Sub ${ pimcoreS3Bucket.Arn}
+            Resource:
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
 
-  pimcoreCDNOriginAccessId:
+  CDNOriginAccessId:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub 'Origin Access Id (OAI) for ${BucketName}-bucket.s3.amazonaws.com.'
+        Comment: !Sub 'Origin Access Id (OAI) for ${BucketName}.s3.amazonaws.com.'
 
-  pimcoreCDN:
+  CDN:
     # @see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-cloudfront.html
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
         Origins:
           - Id: !Sub 's3-${BucketName}'
-            DomainName: !Sub '${BucketName}-bucket.s3.amazonaws.com'
+            DomainName: !Sub '${BucketName}.s3.amazonaws.com'
             S3OriginConfig:
-              OriginAccessIdentity: !Join [ "", [ "origin-access-identity/cloudfront/", !Ref pimcoreCDNOriginAccessId ] ]
+              OriginAccessIdentity: !Join [ "", [ "origin-access-identity/cloudfront/", !Ref CDNOriginAccessId ] ]
         Enabled: true
         Comment: 'CDN Comment'
         DefaultCacheBehavior:
@@ -126,10 +120,10 @@ Resources:
 Outputs:
   PimcoreCloudFrontURL:
     Description: "CDN URL"
-    Value: !GetAtt pimcoreCDN.DomainName
+    Value: !GetAtt CDN.DomainName
   PimcoreS3BucketArn:
     Description: "The name of the S3 bucket"
-    Value: !GetAtt pimcoreS3Bucket.Arn
+    Value: !GetAtt S3Bucket.Arn
   PimcoreS3BucketName:
     Description: "The name of the S3 bucket"
-    Value: !Sub '${BucketName}-bucket'
+    Value: !Sub '${BucketName}'

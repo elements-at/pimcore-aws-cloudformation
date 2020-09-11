@@ -61,16 +61,10 @@ Resources:
   #
   EcsContainerRole:
     Type: AWS::IAM::Role
+    DependsOn: SetupUser
     Properties:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMFullAccess
-        #- arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
-        #- arn:aws:iam::aws:policy/IAMFullAccess
-        #- arn:aws:iam::aws:policy/AWSCloudMapFullAccess
-        #- arn:aws:iam::aws:policy/AmazonEC2FullAccess
-        #- arn:aws:iam::aws:policy/AmazonECS_FullAccess
-        #- arn:aws:iam::aws:policy/AWSLambdaFullAccess
-        #- arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
         - arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
         - arn:aws:iam::aws:policy/AmazonRDSFullAccess
       AssumeRolePolicyDocument:
@@ -80,6 +74,8 @@ Resources:
             Service:
               - "lambda.amazonaws.com"
               - "ecs-tasks.amazonaws.com"
+            AWS:
+              - !GetAtt SetupUser.Arn
           Action:
             - sts:AssumeRole
       Path: "/"
@@ -87,6 +83,7 @@ Resources:
   # # @todo - restrict
   EcsContainerExecutionRole:
     Type: AWS::IAM::Role
+    DependsOn: SetupUser
     Properties:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMFullAccess
@@ -107,6 +104,8 @@ Resources:
             Service:
               - "lambda.amazonaws.com"
               - "ecs-tasks.amazonaws.com"
+            AWS:
+              - !GetAtt SetupUser.Arn
           Action:
             - sts:AssumeRole
       Path: "/"

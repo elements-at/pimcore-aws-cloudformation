@@ -2,14 +2,20 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: "Create a minimal Pimcore standard stack."
 # @see https://www.trek10.com/blog/cloudformation-nested-stacks-primer
 Parameters:
+
   App:
     Type: String
     Default: pimcore-app
     Description: Your application's name.
+    MinLength: 2
+    MaxLength: 12 # "pimcore-app" (length: 11)
+    AllowedPattern: '[a-z\-]*'
+
   Env:
     Type: String
     Description: The environment name your service, job, or workflow is being deployed to.
-    Default: dev
+    Default: staging
+    AllowedPattern: '[a-z]*'
     AllowedValues:
       - dev
       - staging
@@ -25,6 +31,7 @@ Parameters:
     Description: The password for the DB master user.
     Default: 'pimcore123!'
     NoEcho: true
+
 Resources:
 
   PimcoreUsers:
@@ -81,7 +88,7 @@ Resources:
         cacheNodeType: cache.t2.medium
         sessionNodeType: cache.t2.medium
 
-  PimcorDBCluster:
+  PimcoreDBCluster:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - PimcoreUsers
@@ -89,6 +96,7 @@ Resources:
     Properties:
       TemplateURL: pimcore-stack/db-cluster.yml
       Parameters:
+        UniqueAppName: !Sub '${App}-${Env}'
         DatabasePassword: !Ref DbPassword
         SubnetId1: !GetAtt PimcoreVPC.Outputs.Subnet1
         SubnetId2: !GetAtt PimcoreVPC.Outputs.Subnet2
@@ -104,7 +112,7 @@ Resources:
       - PimcoreVPC
       - PimcoreS3Stack
       - PimcoreElastiCacheInstancesStack
-      - PimcorDBCluster
+      - PimcoreDBCluster
     Properties:
       TemplateURL: pimcore-stack/ecs-cluster.yml
       Parameters:
@@ -113,12 +121,12 @@ Resources:
         RedisSessionHost: !GetAtt PimcoreElastiCacheInstancesStack.Outputs.PimcoreSessionCacheEndpoint
         CloudfrontURL: !GetAtt PimcoreS3Stack.Outputs.PimcoreCloudFrontURL
         S3BucketName: !GetAtt PimcoreS3Stack.Outputs.PimcoreS3BucketName
-        DbPrimaryEndpoint: !GetAtt PimcorDBCluster.Outputs.DbPrimaryEndpoint
-        DbPrimaryPort: !GetAtt PimcorDBCluster.Outputs.DbPrimaryPort
-        DbReadEndpoint: !GetAtt PimcorDBCluster.Outputs.DbReadEndpoint
-        DbReadPort: !GetAtt PimcorDBCluster.Outputs.DbReadPort
-        DbName: !GetAtt PimcorDBCluster.Outputs.DbName
-        DbUser: !GetAtt PimcorDBCluster.Outputs.DbUser
+        DbPrimaryEndpoint: !GetAtt PimcoreDBCluster.Outputs.DbPrimaryEndpoint
+        DbPrimaryPort: !GetAtt PimcoreDBCluster.Outputs.DbPrimaryPort
+        DbReadEndpoint: !GetAtt PimcoreDBCluster.Outputs.DbReadEndpoint
+        DbReadPort: !GetAtt PimcoreDBCluster.Outputs.DbReadPort
+        DbName: !GetAtt PimcoreDBCluster.Outputs.DbName
+        DbUser: !GetAtt PimcoreDBCluster.Outputs.DbUser
         DbPassword: !Ref DbPassword
 
         Subnet1: !GetAtt PimcoreVPC.Outputs.Subnet1
