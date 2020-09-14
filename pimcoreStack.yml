@@ -24,12 +24,11 @@ Parameters:
 
   DockerImage:
     Type: String
-    Default: 414501751304.dkr.ecr.eu-central-1.amazonaws.com/pimcore-demo:latest
+    #Default: 414501751304.dkr.ecr.eu-central-1.amazonaws.com/pimcore-demo:latest #TODO
 
   DbPassword:
     Type: String
     Description: The password for the DB master user.
-    Default: 'pimcore123!'
     NoEcho: true
 
 Resources:

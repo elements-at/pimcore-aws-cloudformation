@@ -27,7 +27,7 @@ Resources:
       Subnets: [ !Ref Subnet1, !Ref Subnet2 ]
       Type: application
 
-  HTTPListener:
+  HTTPListenerBlue:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Description: 'listener...'
     Properties:
@@ -36,6 +36,17 @@ Resources:
           Type: forward
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 80
+      Protocol: HTTP
+
+  HTTPListenerGreen:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Description: 'blue/green test listener (not publicly accessible)'
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref GreenHttpTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref PublicLoadBalancer
+      Port: 8080
       Protocol: HTTP
 
   PublicLoadBalancerSecurityGroup:
