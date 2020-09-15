@@ -18,7 +18,7 @@ Resources:
   PimcoreBastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Sub ${UniqueAppName}-bastion-sg'
+      GroupName: !Sub '${UniqueAppName}-bastion-sg'
       GroupDescription: !Sub Bastion Security Group for ${AWS::StackName}
       VpcId: !Ref VpcId
       SecurityGroupIngress:
