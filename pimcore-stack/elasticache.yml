@@ -3,13 +3,13 @@ Description: "Create Pimcore Redis sub stack."
 Parameters:
   UniqueAppName:
     Type: String
-  securityGroupId:
-    Type: AWS::EC2::SecurityGroup::Id
+    Description: Default redis node type size for session instances.
+  SecurityGroupList:
+    Type: List<AWS::EC2::SecurityGroup::Id>
   Subnet1:
     Type: String
   Subnet2:
     Type: String
-
   # see https://aws.amazon.com/elasticache/pricing/
   cacheNodeType:
     Type: String
@@ -18,7 +18,6 @@ Parameters:
   sessionNodeType:
     Type: String
     Default: cache.t2.medium
-    Description: Default redis node type size for session instances.
 Resources:
   RedisSubnetGroup:
     Type: 'AWS::ElastiCache::SubnetGroup'
@@ -40,8 +39,7 @@ Resources:
       CacheParameterGroupName: !Ref PimcoreRedisCacheParameterGroup
       CacheSubnetGroupName: !Ref RedisSubnetGroup
       SnapshotRetentionLimit: 0
-      VpcSecurityGroupIds:
-        - !Ref securityGroupId
+      VpcSecurityGroupIds: !Ref SecurityGroupList
   PimcoreRedisCacheParameterGroup:
     Type: 'AWS::ElastiCache::ParameterGroup'
     Properties:
@@ -61,8 +59,7 @@ Resources:
       SnapshotRetentionLimit: 0
       CacheParameterGroupName: !Ref PimcoreRedisSessionParameterGroup
       CacheSubnetGroupName: !Ref RedisSubnetGroup
-      VpcSecurityGroupIds:
-        - !Ref securityGroupId
+      VpcSecurityGroupIds: !Ref SecurityGroupList
   PimcoreRedisSessionParameterGroup:
     Type: 'AWS::ElastiCache::ParameterGroup'
     Properties:

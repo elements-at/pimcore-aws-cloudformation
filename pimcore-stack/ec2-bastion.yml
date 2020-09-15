@@ -18,7 +18,7 @@ Resources:
   PimcoreBastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Sub ${AWS::StackName}-securitygroup
+      GroupName: !Sub ${UniqueAppName}-bastion-sg'
       GroupDescription: !Sub Bastion Security Group for ${AWS::StackName}
       VpcId: !Ref VpcId
       SecurityGroupIngress:
@@ -28,7 +28,9 @@ Resources:
           FromPort: 22
           IpProtocol: tcp
           ToPort: 22
-
+      Tags:
+        - Key: Name
+          Value: !Sub ${UniqueAppName}-bastion-sg'
   SSMAgentRole:
     Type: AWS::IAM::Role
     Properties:

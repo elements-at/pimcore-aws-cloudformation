@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Empty ECS cluster"
+
+Parameters:
+  UniqueAppName:
+    Type: String
+  VpcId:
+    Type: String
+
+Resources:
+  SecurityGroupBlueServices:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub  '${UniqueAppName}-sg-blue-services'
+      GroupDescription: !Sub '${UniqueAppName} - Security group blue services'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0 # restrict to load balancer?
+          Description: Allow from anyone on port 80
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all traffic
+          FromPort: 80
+          IpProtocol: -1
+          ToPort: 80
+      Tags:
+        - Key: Name
+          Value: !Sub '${UniqueAppName}-sg-blue'
+
+  SecurityGroupGreenServices:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub  '${UniqueAppName}-sg-green-services'
+      GroupDescription: !Sub '${UniqueAppName} - Security group Green'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow from anyone on port 80
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      SecurityGroupEgress:
+        - CidrIp: 127.0.0.1/32
+          Description: Allow no outbound traffic (for blue/green switch)
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      Tags:
+        - Key: Name
+          Value: !Sub '${UniqueAppName}-sg-green'
+Outputs:
+  SecurityGroupBlue:
+    Value: !Ref SecurityGroupBlueServices
+  SecurityGroupGreen:
+    Value: !Ref SecurityGroupGreenServices

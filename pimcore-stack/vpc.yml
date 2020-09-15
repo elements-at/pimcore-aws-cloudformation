@@ -94,6 +94,7 @@ Resources:
   SecurityGroup1:
     Type: AWS::EC2::SecurityGroup
     Properties:
+      GroupName: !Sub '${UniqueAppName} - Security group 1'
       GroupDescription: !Sub '${UniqueAppName} - Security group 1'
       VpcId: !Ref VPC
 

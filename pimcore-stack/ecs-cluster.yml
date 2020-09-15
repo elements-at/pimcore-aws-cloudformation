@@ -4,6 +4,8 @@ Description: "Empty ECS cluster"
 Parameters:
   UniqueAppName:
     Type: String
+  VpcId:
+    Type: String
   DockerImage:
     Type: String
     Default: 414501751304.dkr.ecr.eu-central-1.amazonaws.com/pimcore-demo:latest # amazon/amazon-ecs-sample
@@ -48,7 +50,10 @@ Parameters:
     Type: String
   SecurityGroup1:
     Type: String
-
+  SecurityGroupBlue:
+    Type: AWS::EC2::SecurityGroup::Id
+  SecurityGroupGreen:
+    Type: AWS::EC2::SecurityGroup::Id
   TaskExecutionRoleArn:
     Type: String
   TaskRoleArn:
@@ -178,6 +183,7 @@ Resources:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: !Sub '${UniqueAppName}'
+
 Outputs:
   ClusterId:
     Value: !Ref Cluster

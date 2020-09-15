@@ -10,10 +10,8 @@ Parameters:
     Type: AWS::EC2::Subnet::Id
   SubnetId2:
     Type: AWS::EC2::Subnet::Id
-  VpcSecurityGroupId:
-    Type: String
-    Description: The VPC of the ECS cluster.
-
+  SecurityGroupList:
+    Type: List<AWS::EC2::SecurityGroup::Id>
   DatabaseUser:
     Default: pimcoreadmin
     Type: String
@@ -139,10 +137,10 @@ Resources:
       DatabaseName: !Ref DatabaseName
       DeletionProtection: false
       #BackupRetentionPeriod: 1
-      EnableHttpEndpoint: true # enable Data API
+      #EnableIAMDatabaseAuthentication: true #TODO - test @see https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.html
+      EnableHttpEndpoint: true # enable Data API (only works for Aurora serverless?)
       DBClusterParameterGroupName: !Ref PimcoreRDSDBClusterParameterGroup #!If [ IsAuroraMySQL,  default.aurora5.6, default.aurora-postgresql9.6 ]
-      VpcSecurityGroupIds:
-        - !Ref VpcSecurityGroupId
+      VpcSecurityGroupIds: !Ref SecurityGroupList
     DependsOn: DatabaseSubnetGroup
 
   PimcoreDBWriterInstance:
