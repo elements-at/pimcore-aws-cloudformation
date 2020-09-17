@@ -78,8 +78,8 @@ Resources:
       Parameters:
         UniqueAppName: !Sub '${App}-${Env}'
         VpcId: !GetAtt PimcoreVPC.Outputs.VpcId
-        Subnet1: !GetAtt PimcoreVPC.Outputs.Subnet1
-        Subnet2: !GetAtt PimcoreVPC.Outputs.Subnet2
+        Subnet1: !GetAtt PimcoreVPC.Outputs.PublicSubnet1
+        Subnet2: !GetAtt PimcoreVPC.Outputs.PublicSubnet2
         SecurityGroup1: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
 
   PimcoreElastiCacheInstancesStack:
@@ -167,4 +167,4 @@ Resources:
         UniqueAppName: !Sub '${App}-${Env}'
         VpcId: !GetAtt PimcoreVPC.Outputs.VpcId
         VpcSecurityGroupId: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
-        SubnetId: !GetAtt PimcoreVPC.Outputs.Subnet1
+        SubnetId: !GetAtt PimcoreVPC.Outputs.PublicSubnet1

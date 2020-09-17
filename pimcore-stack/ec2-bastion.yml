@@ -24,10 +24,20 @@ Resources:
       SecurityGroupIngress:
         # Test - accept SSH for SSM Agent
         - CidrIp: 0.0.0.0/0
-          Description: Allow from anyone on port 443
+          Description: Allow from anyone on port 22
           FromPort: 22
           IpProtocol: tcp
           ToPort: 22
+#        - CidrIp: 0.0.0.0/0
+#          Description: Allow from anyone on port 80 (just a test to see if IP address is activated)
+#          FromPort: 80
+#          IpProtocol: tcp
+#          ToPort: 80
+#        - CidrIp: 0.0.0.0/0
+#          Description: Allow from anyone on port 443 (just a test to see if IP address is activated)
+#          FromPort: 80
+#          IpProtocol: tcp
+#          ToPort: 80
       Tags:
         - Key: Name
           Value: !Sub ${UniqueAppName}-bastion-sg'
@@ -86,7 +96,7 @@ Resources:
       SubnetId: !Ref SubnetId
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}
+          Value: !Sub '${AWS::StackName}-Bastion'
       UserData:
         Fn::Base64: "
         #!/bin/bash
