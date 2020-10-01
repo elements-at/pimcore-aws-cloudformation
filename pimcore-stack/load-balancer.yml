@@ -21,7 +21,7 @@ Resources:
   PublicLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub '${UniqueAppName}-load-balancer'
+      Name: !Sub '${UniqueAppName}-alb' #max 32. characters
       Scheme: internet-facing
       SecurityGroups: [ !GetAtt PublicLoadBalancerSecurityGroup.GroupId ]
       Subnets: [ !Ref Subnet1, !Ref Subnet2 ]

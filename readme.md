@@ -14,6 +14,23 @@ Nested Stacks:
  
  ---
  
+ ### Usage
+ 
+ 1. Login aws.amazon.com/cloudformation and install the ``pimcoreDevBox`` Cloudformation template. This will give you
+ a cloud formation setup user which you can use to install the actual cloudformation stack from your local environment. 
+ 
+ 2. Switch to IAM, locate your Setup user and create a new access key in order to retrieve the secret.
+ 
+ 3. SSH into your local server, such as ``ssh docker@docker.elements.zone``.
+ 
+ 4. Install the AWS CLI or leverage the ecs-cli docker image: ``docker run -it -v ${PWD}:/ecs-cluster  -v /var/run/docker.sock:/var/run/docker.sock agruenwald/ecs-cli bash``
+ 
+ 5. Use ``aws configure`` and enter the credentials of the AWS Setup user + dedicated region.
+ 
+ 6. Download the Pimcore CFN stack templates and execute cloud formation. git clone <repository-url>. 
+ 
+ 7. Execute ``bin/package-cloudformation.sh`` to actually pack, upload and install the cloudformation template. You will need a S3 bucket for your action.
+ 
  ### Common Questions
  
 How can I deploy the nested stack? 

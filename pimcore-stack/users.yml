@@ -43,6 +43,7 @@ Resources:
     Type: 'AWS::IAM::Policy'
     DependsOn:
         - SetupUserGroup
+        - SetupUser
     Properties:
       PolicyName: !Sub '${Prefix}-SetupUserPolicy'
       PolicyDocument:

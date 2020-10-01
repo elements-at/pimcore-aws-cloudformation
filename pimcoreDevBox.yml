@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Create a Pimcore DEV box (optional), befor you create an actual pimcore stack."
+# @see https://www.trek10.com/blog/cloudformation-nested-stacks-primer
+Parameters:
+  Prefix:
+    Type: String
+    Default: 'Pimcore'
+Resources:
+  #
+  # Setup User is used to install the cloudformation environment from your local (docker) environment.
+  # @see https://policysim.aws.amazon.com/ for simulating policies
+  # Currently has permissions to execute copilot and perform cloudformation deployments
+  #
+  SetupUser:
+    Type: 'AWS::IAM::User'
+
+  SetupUserGroup:
+    Type: 'AWS::IAM::Group'
+    Properties:
+      GroupName: !Sub '${Prefix}-SetupUserGroup'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AWSCloudMapFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+        - arn:aws:iam::aws:policy/AWSLambdaFullAccess
+        #- arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
+        - arn:aws:iam::aws:policy/AmazonRDSFullAccess
+        - arn:aws:iam::aws:policy/CloudFrontFullAccess
+#        - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+    # attention: max 10 managed policies
+  AddSetupUserToGroup:
+    Type: 'AWS::IAM::UserToGroupAddition'
+    DependsOn: SetupUserGroup
+    Properties:
+      GroupName: !Sub '${Prefix}-setupUserGroup'
+      Users:
+        - !Ref SetupUser
+  SetupUserAccessKeys:
+    Type: 'AWS::IAM::AccessKey'
+    DependsOn: SetupUser
+    Properties:
+      UserName:
+        Ref: SetupUser
+  SetupUserPolicy:
+    Type: 'AWS::IAM::Policy'
+    DependsOn:
+      - SetupUserGroup
+      - SetupUser
+    Properties:
+      PolicyName: !Sub '${Prefix}-SetupUserPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+              - secretsmanager:* # test
+            Resource: '*'
+      Groups:
+        - !Sub '${Prefix}-setupUserGroup'
+
+  # TODOs
+  # offer S3 bucket for CFN templates
+  # offer ECR repository for docker image upload?
+
+Outputs:
+  SetupUserAccessKey:
+    Description: "Setup User Access Key"
+    Value: !Ref SetupUserAccessKeys
+  SetupUserAccessToken:
+    Description: "Setup User Access token"
+    Value: 'Please create an access token using the AWS console (IAM).'
+  SetupUserArn:
+    Description: "Setup User ARN"
+    Value: !GetAtt SetupUser.Arn

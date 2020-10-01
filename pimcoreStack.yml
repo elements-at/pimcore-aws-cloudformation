@@ -22,14 +22,17 @@ Parameters:
       - test
       - production
 
+  #@todo verify if necessary, as task definitions are created by pimcore aws deployer
   DockerImage:
     Type: String
-    #Default: 414501751304.dkr.ecr.eu-central-1.amazonaws.com/pimcore-demo:latest #TODO
+    Default: 'amazon/amazon-ecs-sample:latest'
 
+  #@todo remove (solved via secrets manager)
   DbPassword:
     Type: String
     Description: The password for the DB master user.
     NoEcho: true
+    Default: 'Pimcore123!'
 
 Resources:
 
@@ -39,6 +42,14 @@ Resources:
       TemplateURL: pimcore-stack/users.yml
       Parameters:
         Prefix: !Sub '${App}-${Env}'
+
+  PimcoreVPC:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: PimcoreUsers
+    Properties:
+      TemplateURL: pimcore-stack/vpc.yml
+      Parameters:
+        UniqueAppName: !Sub '${App}-${Env}'
 
   PimcoreEcsClusterPermissions:
     Type: AWS::CloudFormation::Stack
@@ -59,14 +70,6 @@ Resources:
         BucketName: !Sub '${App}-${Env}'
         SetupUserArn: !GetAtt PimcoreUsers.Outputs.SetupUserArn
         UploadUserArn: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskRole
-
-  PimcoreVPC:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: PimcoreUsers
-    Properties:
-      TemplateURL: pimcore-stack/vpc.yml
-      Parameters:
-        UniqueAppName: !Sub '${App}-${Env}'
 
   PimcoreLoadBalancerResources:
     Type: AWS::CloudFormation::Stack

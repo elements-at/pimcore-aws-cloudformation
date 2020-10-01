@@ -6,6 +6,9 @@
 
 
 BASE_DIR="${HOME}/pimcore-aws-cloudformation" #adjust as you like
+
+BASE_DIR="/ecs-cluster/pimcore-aws-cloudformation"
+
 echo "==== Package ${BASE_DIR}/pimcoreStack... ===="
 
 read -p "Please name a S3 bucket for packaging the cloudformation templates [cloudformationdeployment]:" packagingBucket

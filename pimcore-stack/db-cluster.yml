@@ -131,7 +131,8 @@ Resources:
     Properties:
       Engine: !Ref DatabaseEngine
       MasterUsername: !Ref DatabaseUser
-      MasterUserPassword: !Ref DatabasePassword
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${PimcoreRDSMasterSecret}::password}}'
+      #MasterUserPassword: !Ref DatabasePassword
       DBSubnetGroupName: !Ref DatabaseSubnetGroup
       StorageEncrypted: !Ref EncryptionAtRest
       DatabaseName: !Ref DatabaseName

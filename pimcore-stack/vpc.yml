@@ -50,7 +50,7 @@ Resources:
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: 10.0.3.0/24 # must not overlap with vpc subnet Cidrs
+      CidrBlock: 10.0.2.0/24 # must not overlap with vpc subnet Cidrs
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       MapPublicIpOnLaunch: true
@@ -61,9 +61,9 @@ Resources:
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: 10.0.2.0/24 # must not overlap with vpc subnet Cidrs
+      CidrBlock: 10.0.3.0/24 # must not overlap with vpc subnet Cidrs
       VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -82,17 +82,17 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
-  PrivateSubnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref RouteTable
-      SubnetId: !Ref PrivateSubnet1
+#  PrivateSubnet1RouteTableAssociation:
+#    Type: AWS::EC2::SubnetRouteTableAssociation
+#    Properties:
+#      RouteTableId: !Ref RouteTable
+#      SubnetId: !Ref PrivateSubnet1
 
-  PrivateSubnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref RouteTable
-      SubnetId: !Ref PrivateSubnet2
+#  PrivateSubnet2RouteTableAssociation:
+#    Type: AWS::EC2::SubnetRouteTableAssociation
+#    Properties:
+#      RouteTableId: !Ref RouteTable
+#      SubnetId: !Ref PrivateSubnet2
 
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -136,10 +136,14 @@ Resources:
       Domain: vpc
   NatGatewayOne:
     Type: AWS::EC2::NatGateway
+    DependsOn: NatGatewayOneAttachment
     Properties:
       AllocationId: !GetAtt NatGatewayOneAttachment.AllocationId
       SubnetId: !Ref PublicSubnet1
   NatGatewayTwo:
+    DependsOn:
+      - NatGatewayTwoAttachment
+      - PublicSubnet2
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt NatGatewayTwoAttachment.AllocationId
@@ -165,38 +169,21 @@ Resources:
       VpcId: !Ref 'VPC'
   PrivateRouteTwo:
     Type: AWS::EC2::Route
+    DependsOn:
+      - NatGatewayTwo
+      - PrivateRouteTableTwo
     Properties:
       RouteTableId: !Ref PrivateRouteTableTwo
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGatewayTwo
   PrivateRouteTableTwoAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - PrivateRouteTableTwo
+      - PrivateSubnet2
     Properties:
       RouteTableId: !Ref PrivateRouteTableTwo
       SubnetId: !Ref PrivateSubnet2
-#
-#  # OPTIONAL: VPC Endpoint for DynamoDB
-#  # If a container needs to access DynamoDB this allows a container in the private subnet
-#  # to talk to DynamoDB directly without needing to go via the NAT gateway. This reduces
-#  # the amount of bandwidth through the gateway, meaning that the gateway is free to serve
-#  # your other traffic.
-#  DynamoDBEndpoint:
-#    Type: AWS::EC2::VPCEndpoint
-#    Properties:
-#      PolicyDocument:
-#        Version: "2012-10-17"
-#        Statement:
-#          - Effect: Allow
-#            Action: "*"
-#            Principal: "*"
-#            Resource: "*"
-#      RouteTableIds:
-#        - !Ref 'PrivateRouteTableOne'
-#        - !Ref 'PrivateRouteTableTwo'
-#      ServiceName: !Join [ "", [ "com.amazonaws.", { "Ref": "AWS::Region" }, ".dynamodb" ] ]
-#      VpcId: !Ref 'VPC'
-  # END NAT
-
 Outputs:
   VpcId:
     Value: !Ref VPC
