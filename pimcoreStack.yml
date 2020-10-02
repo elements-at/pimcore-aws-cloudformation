@@ -34,6 +34,11 @@ Parameters:
     NoEcho: true
     Default: 'Pimcore123!'
 
+  DomainName:
+    Type: String
+    Description: Name of your test domain, such as pimcore.xyz.
+    Default: 'pimcore.xyz' #TODO
+
 Resources:
 
   PimcoreUsers:
@@ -71,11 +76,23 @@ Resources:
         SetupUserArn: !GetAtt PimcoreUsers.Outputs.SetupUserArn
         UploadUserArn: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskRole
 
+  PimcoreDNS:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - PimcoreUsers
+      - PimcoreVPC
+    Properties:
+      TemplateURL: pimcore-stack/dns.yml
+      Parameters:
+        UniqueAppName: !Sub '${App}-${Env}'
+        DomainName: !Ref DomainName
+
   PimcoreLoadBalancerResources:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - PimcoreUsers
       - PimcoreVPC
+      - PimcoreDNS
     Properties:
       TemplateURL: pimcore-stack/load-balancer.yml
       Parameters:

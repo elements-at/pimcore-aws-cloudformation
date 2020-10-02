@@ -59,6 +59,9 @@ Resources:
             Action:
               - sts:AssumeRole
               - secretsmanager:* # test
+              - acm:RequestCertificate # for ACM certificate creation
+              - acm:DescribeCertificate
+              - route53:*
             Resource: '*'
       Groups:
         - !Sub '${Prefix}-setupUserGroup'
