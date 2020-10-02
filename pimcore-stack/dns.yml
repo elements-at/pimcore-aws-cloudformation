@@ -12,6 +12,8 @@ Parameters:
     Type: String
     Default: 'Z215JYRZR1TBD5' #TODO get the value from the load balancer?
 Resources:
+
+  ## requires installation. should be prepared upfront
   PimcoreInstanceCert:
     Type: AWS::CertificateManager::Certificate
     Properties:
@@ -20,6 +22,8 @@ Resources:
         - DomainName: !Sub '${UniqueAppName}.${DomainName}'
           ValidationDomain: !Sub '${UniqueAppName}.${DomainName}'
       ValidationMethod: DNS
+
+  ## link DNS with load balancer
   DNSRecord:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -31,6 +35,8 @@ Resources:
         DNSName: !Ref LoadBalancerDNS
         HostedZoneId: !Ref LoadBalancerHostedZone
 
+  ## TODO
+  ## assign certificate to load balancer ports
 
 Outputs:
   DomainName:
