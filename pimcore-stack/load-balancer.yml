@@ -4,6 +4,8 @@ Description: "Application Load Balancer (ALB) with Target Groups for Blue / Gree
 Parameters:
   UniqueAppName:
     Type: String
+  DomainName:
+    Type: String
   VpcId:
     Type: String
     Description: The VPC of the ECS cluster.
@@ -16,6 +18,13 @@ Parameters:
   SecurityGroup1:
     Type: String
     Description: The Security Group 1 of the related VPC.
+  ExistingCertificateARN:
+    Type: String
+    Default: false
+
+Conditions:
+  InstallCertificate: !Equals [ !Ref ExistingCertificateARN, false ]
+
 Resources:
 
   PublicLoadBalancer:
@@ -27,16 +36,41 @@ Resources:
       Subnets: [ !Ref Subnet1, !Ref Subnet2 ]
       Type: application
 
+  ## SSL certificate. Requires validation, so consider installing a (wildcard) certificate upfront.
+  PimcoreInstanceCert:
+    Condition: InstallCertificate
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub '${UniqueAppName}.${DomainName}'
+      DomainValidationOptions:
+        - DomainName: !Sub '${UniqueAppName}.${DomainName}'
+          ValidationDomain: !Sub '${UniqueAppName}.${DomainName}'
+      ValidationMethod: DNS
+
+  ## link DNS with load balancer
+  DNSRecord:
+    DependsOn: PublicLoadBalancer
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Sub '${DomainName}.'
+      Name: !Sub '${UniqueAppName}.${DomainName}'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt PublicLoadBalancer.DNSName
+        HostedZoneId: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID
+
   HTTPListenerBlue:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    Description: 'listener...'
+    Description: 'Default listener (blue group)'
     Properties:
       DefaultActions:
         - TargetGroupArn: !Ref BlueHttpTargetGroup
           Type: forward
       LoadBalancerArn: !Ref PublicLoadBalancer
-      Port: 80
-      Protocol: HTTP
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - !Ref PimcoreInstanceCert
 
   HTTPListenerGreen:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -47,7 +81,9 @@ Resources:
           Type: forward
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 8080
-      Protocol: HTTP
+      Protocol: HTTPS
+      Certificates:
+        - !Ref PimcoreInstanceCert
 
   PublicLoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -114,44 +150,8 @@ Resources:
       IpProtocol: -1
       SourceSecurityGroupId: !Ref PublicLoadBalancerSecurityGroup
 
-#  # @just a test. The domain still needs to be injected....
-#  HTTPSCert:
-#    Type: AWS::CertificateManager::Certificate
-#    Properties:
-#      DomainName: pimcore.xyz
-#      DomainValidationOptions:
-#        - DomainName: pimcore.xyz
-#          ValidationDomain: pimcore.xyz
-#      SubjectAlternativeNames:
-#        - !GetAtt PublicLoadBalancer.DNSName
-
-# see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
-#  # DNS Delegation Resources
-#  CertificateValidationFunction:
-#    Type: AWS::Lambda::Function
-#    Properties:
-#      Code:
-#        ZipFile: |
-#          'use strict';const aws=require("aws-sdk"),defaultSleep=function(a){return new Promise(b=>setTimeout(b,a))};let defaultResponseURL,waiter,sleep=defaultSleep,random=Math.random,maxAttempts=10,report=function(a,b,c,d,e,f){return new Promise((g,h)=>{const i=require("https"),{URL:j}=require("url");var k=JSON.stringify({Status:c,Reason:f,PhysicalResourceId:d||b.logStreamName,StackId:a.StackId,RequestId:a.RequestId,LogicalResourceId:a.LogicalResourceId,Data:e});const l=new j(a.ResponseURL||defaultResponseURL),m={hostname:l.hostname,port:443,path:l.pathname+l.search,method:"PUT",headers:{"Content-Type":"","Content-Length":k.length}};i.request(m).on("error",h).on("response",a=>{a.resume(),400<=a.statusCode?h(new Error(`Error ${a.statusCode}: ${a.statusMessage}`)):g()}).end(k,"utf8")})};const requestCertificate=async function(a,b,c,d,e){var f=Math.pow;const g=require("crypto"),[h,i]=clients(e),j=await h.requestCertificate({DomainName:b,SubjectAlternativeNames:c,IdempotencyToken:g.createHash("sha256").update(a).digest("hex").substr(0,32),ValidationMethod:"DNS"}).promise();let k;for(let g=0;g<maxAttempts&&!k;g++){const{Certificate:a}=await h.describeCertificate({CertificateArn:j.CertificateArn}).promise(),b=a.DomainValidationOptions||[];if(0<b.length&&b[0].ResourceRecord)k=b[0].ResourceRecord;else{const a=f(2,g);await sleep(50*(random()*a)+150*a)}}if(!k)throw new Error(`DescribeCertificate did not contain DomainValidationOptions after ${maxAttempts} tries.`);console.log(`Creating DNS record into zone ${d}: ${k.Name} ${k.Type} ${k.Value}`);const l=await updateRecords(i,d,"UPSERT",k.Name,k.Type,k.Value);return await waitForRecordChange(i,l.ChangeInfo.Id),await h.waitFor("certificateValidated",{$waiter:{delay:30,maxAttempts:19},CertificateArn:j.CertificateArn}).promise(),j.CertificateArn},deleteCertificate=async function(a,b,c){const[d,e]=clients(b);try{console.log(`Waiting for certificate ${a} to become unused`);let b,f;for(let c=0;c<maxAttempts;c++){const{Certificate:c}=await d.describeCertificate({CertificateArn:a}).promise();if(b=c.InUseBy||[],f=c.DomainValidationOptions||[],b.length)await sleep(3e4);else break}if(b.length)throw new Error(`Certificate still in use after checking for ${maxAttempts} attempts.`);if(0<f.length&&f[0].ResourceRecord){const a=f[0].ResourceRecord,b=await updateRecords(e,c,"DELETE",a.Name,a.Type,a.Value);await waitForRecordChange(e,b.ChangeInfo.Id)}await d.deleteCertificate({CertificateArn:a}).promise()}catch(a){if("ResourceNotFoundException"!==a.name)throw a}},waitForRecordChange=function(a,b){return a.waitFor("resourceRecordSetsChanged",{$waiter:{delay:30,maxAttempts:10},Id:b}).promise()},updateRecords=function(a,b,c,d,e,f){return a.changeResourceRecordSets({ChangeBatch:{Changes:[{Action:c,ResourceRecordSet:{Name:d,Type:e,TTL:60,ResourceRecords:[{Value:f}]}}]},HostedZoneId:b}).promise()},clients=function(a){const b=new aws.ACM({region:a}),c=new aws.Route53;return waiter&&(c.waitFor=b.waitFor=waiter),[b,c]};exports.certificateRequestHandler=async function(a,b){var c,d,e={};try{switch(a.RequestType){case"Create":case"Update":d=await requestCertificate(a.RequestId,a.ResourceProperties.DomainName,a.ResourceProperties.SubjectAlternativeNames,a.ResourceProperties.HostedZoneId,a.ResourceProperties.Region),e.Arn=c=d;break;case"Delete":c=a.PhysicalResourceId,c.startsWith("arn:")&&(await deleteCertificate(c,a.ResourceProperties.Region,a.ResourceProperties.HostedZoneId));break;default:throw new Error(`Unsupported request type ${a.RequestType}`);}await report(a,b,"SUCCESS",c,e)}catch(d){console.log(`Caught error ${d}.`),await report(a,b,"FAILED",c,null,d.message)}},exports.withDefaultResponseURL=function(a){defaultResponseURL=a},exports.withWaiter=function(a){waiter=a},exports.withSleep=function(a){sleep=a},exports.reset=function(){sleep=defaultSleep,random=Math.random,waiter=void 0,maxAttempts=10},exports.withRandom=function(a){random=a},exports.withMaxAttempts=function(a){maxAttempts=a};
-#      Handler: "index.certificateRequestHandler"
-#      Timeout: 600
-#      MemorySize: 512
-##      Role: !GetAtt 'CustomResourceRole.Arn'
-#      Runtime: nodejs10.x
-#
-#  HTTPSCert:
-#    Type: Custom::CertificateValidationFunction
-#    DependsOn:
-#      - CertificateValidationFunction
-#      - EnvironmentHostedZone
-#      - DelegateDNSAction
-#    Properties:
-#      ServiceToken: !GetAtt CertificateValidationFunction.Arn
-#      DomainName: !Sub ${EnvironmentName}.${AppName}.${AppDNSName}
-#      HostedZoneId: !Ref EnvironmentHostedZone
-#      Region: !Ref AWS::Region
-#      SubjectAlternativeNames:
-#        - !Sub "*.${EnvironmentName}.${AppName}.${AppDNSName}"
 Outputs:
   loadBalancerSecurityGroupId:
     Value: !Ref PublicLoadBalancerSecurityGroup
+  loadBalancerHostedZoneId:
+    Value: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID

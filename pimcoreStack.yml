@@ -1,8 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Create a minimal Pimcore standard stack."
-# @see https://www.trek10.com/blog/cloudformation-nested-stacks-primer
+Description: "Deploys Pimcore ECS infrastructure based on nested stacks."
 Parameters:
-
   App:
     Type: String
     Default: pimcore-app
@@ -22,22 +20,16 @@ Parameters:
       - test
       - production
 
-  #@todo verify if necessary, as task definitions are created by pimcore aws deployer
-  DockerImage:
-    Type: String
-    Default: 'amazon/amazon-ecs-sample:latest'
-
-  #@todo remove (solved via secrets manager)
-  DbPassword:
-    Type: String
-    Description: The password for the DB master user.
-    NoEcho: true
-    Default: 'Pimcore123!'
-
   DomainName:
     Type: String
-    Description: Name of your test domain, such as pimcore.xyz.
-    Default: 'pimcore.xyz' #TODO
+    Description: Name of your (root) test domain, such as "pimcore.xyz", when app-staging.pimcore.xyz should be hosted.
+
+  ExistingCertificateARN:
+    Type: String
+    Description: Pass a wildcard certificate or a preparte subdomain certificate. If missing, you need to switch to https://console.aws.amazon.com/route53 and validate the certificate manually while the stack is built.
+    Default: false
+
+  # todo pass setupUserARN and connect it with bastion host + S3 ?
 
 Resources:
 
@@ -76,31 +68,21 @@ Resources:
         SetupUserArn: !GetAtt PimcoreUsers.Outputs.SetupUserArn
         UploadUserArn: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskRole
 
-  PimcoreDNS:
-    Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - PimcoreUsers
-      - PimcoreVPC
-    Properties:
-      TemplateURL: pimcore-stack/dns.yml
-      Parameters:
-        UniqueAppName: !Sub '${App}-${Env}'
-        DomainName: !Ref DomainName
-
   PimcoreLoadBalancerResources:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - PimcoreUsers
       - PimcoreVPC
-      - PimcoreDNS
     Properties:
       TemplateURL: pimcore-stack/load-balancer.yml
       Parameters:
         UniqueAppName: !Sub '${App}-${Env}'
+        DomainName: !Ref DomainName
         VpcId: !GetAtt PimcoreVPC.Outputs.VpcId
         Subnet1: !GetAtt PimcoreVPC.Outputs.PublicSubnet1
         Subnet2: !GetAtt PimcoreVPC.Outputs.PublicSubnet2
         SecurityGroup1: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
+        ExistingCertificateARN: !Ref ExistingCertificateARN
 
   PimcoreElastiCacheInstancesStack:
     Type: AWS::CloudFormation::Stack
@@ -131,7 +113,6 @@ Resources:
       TemplateURL: pimcore-stack/db-cluster.yml
       Parameters:
         UniqueAppName: !Sub '${App}-${Env}'
-        DatabasePassword: !Ref DbPassword
         SubnetId1: !GetAtt PimcoreVPC.Outputs.Subnet1
         SubnetId2: !GetAtt PimcoreVPC.Outputs.Subnet2
         SecurityGroupList: !Join [",", [
@@ -166,8 +147,6 @@ Resources:
         DbReadPort: !GetAtt PimcoreDBCluster.Outputs.DbReadPort
         DbName: !GetAtt PimcoreDBCluster.Outputs.DbName
         DbUser: !GetAtt PimcoreDBCluster.Outputs.DbUser
-        DbPassword: !Ref DbPassword
-
         Subnet1: !GetAtt PimcoreVPC.Outputs.Subnet1
         Subnet2: !GetAtt PimcoreVPC.Outputs.Subnet2
         SecurityGroup1: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
