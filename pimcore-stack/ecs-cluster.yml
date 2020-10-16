@@ -32,9 +32,9 @@ Parameters:
     Type: String
   DbUser:
     Type: String
-  DbPassword:
-    Type: String
-    NoEcho: true
+#  DbPassword:
+#    Type: String
+#    NoEcho: true
   Cpu:
     Type: Number
     Default: 256
@@ -99,8 +99,8 @@ Resources:
               Value: !Ref DbName
             - Name: MYSQL_USER
               Value: !Ref DbUser
-            - Name: MYSQL_PASSWORD #improvement: use secrets manager instead. -> in private subnet though
-              Value: !Ref DbPassword
+#            - Name: MYSQL_PASSWORD #improvement: use secrets manager instead. -> in private subnet though
+#              Value: !Ref DbPassword
             - Name: MYSQL_PORT
               Value: !Ref DbPrimaryPort
             - Name: REDIS_CACHE_HOST
@@ -153,8 +153,8 @@ Resources:
               Value: !Ref DbName
             - Name: MYSQL_USER
               Value: !Ref DbUser
-            - Name: MYSQL_PASSWORD #improvement: use secrets manager instead. -> in private subnet though
-              Value: !Ref DbPassword
+#            - Name: MYSQL_PASSWORD #improvement: use secrets manager instead. -> in private subnet though
+#              Value: !Ref DbPassword
             - Name: MYSQL_PORT
               Value: !Ref DbPrimaryPort
             - Name: REDIS_CACHE_HOST
