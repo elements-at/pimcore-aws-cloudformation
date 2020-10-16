@@ -26,6 +26,11 @@ Resources:
           ToPort: 80
           IpProtocol: tcp
           Description: 'ECR Image Pull'
+        - FromPort: 443 # required after ALB changed to port 443
+          CidrIp: 0.0.0.0/0
+          ToPort: 443
+          IpProtocol: tcp
+          Description: 'ECR Image Pull'
         - FromPort: 53
           CidrIp: 0.0.0.0/0
           ToPort: 53
@@ -70,6 +75,11 @@ Resources:
           ToPort: 80
           IpProtocol: tcp
           Description: 'ECR Image Pull'
+        - FromPort: 443 # required after ALB changed to port 443
+          CidrIp: 0.0.0.0/0
+          ToPort: 443
+          IpProtocol: tcp
+          Description: 'ECR Image Pull'
         - FromPort: 53
           CidrIp: 0.0.0.0/0
           ToPort: 53
@@ -85,7 +95,7 @@ Resources:
           FromPort: -1
           IpProtocol: -1
        # - CidrIp: 127.0.0.1/32
-       #   Description: Allow no outbound traffic (for blue/green switch)
+       #   Description: Allow no outbound traffic (for blue/green switch; will be applied by the Pimcore AWS deployer)
        #   #FromPort: 80
        #   IpProtocol: -1
        #   #IpProtocol: tcp
