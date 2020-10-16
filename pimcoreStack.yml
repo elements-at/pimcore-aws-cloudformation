@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Deploys Pimcore ECS infrastructure based on nested stacks."
+Description: "Deploys Pimcore ECS infrastructure based on nested stacks. Note: on deletion ensure that no ECS services are running."
 Parameters:
   App:
     Type: String
@@ -23,6 +23,7 @@ Parameters:
   DomainName:
     Type: String
     Description: Name of your (root) test domain, such as "pimcore.xyz", when app-staging.pimcore.xyz should be hosted.
+    Default: pimcore.xyz # todo - remove default params & change way how the domain is built
 
   ExistingCertificateARN:
     Type: String
@@ -30,6 +31,9 @@ Parameters:
     Default: false
 
   # todo pass setupUserARN and connect it with bastion host + S3 ?
+  #
+  # CognitoProtection: true/false
+  #
 
 Resources:
 

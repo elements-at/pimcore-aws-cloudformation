@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Empty ECS cluster"
+Description: "ECS cluster with demo services."
 
 Parameters:
   UniqueAppName:
@@ -8,7 +8,8 @@ Parameters:
     Type: String
   DockerImage:
     Type: String
-    Default: 414501751304.dkr.ecr.eu-central-1.amazonaws.com/pimcore-demo:latest # amazon/amazon-ecs-sample
+    Default: amazon/amazon-ecs-sample:latest
+    Description: This template is used to demonstrate that the ALB responds to user requests. The actual Pimcore images need to be installed by Pimcore's custom AWS deployer.
   S3BucketName:
     Type: String
   CloudfrontURL:

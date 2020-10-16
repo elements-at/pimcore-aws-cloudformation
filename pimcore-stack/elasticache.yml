@@ -18,6 +18,9 @@ Parameters:
   sessionNodeType:
     Type: String
     Default: cache.t2.medium
+  redisParameterGroupFamily:
+    Type: String
+    Default: "redis5.0"
 Resources:
   RedisSubnetGroup:
     Type: 'AWS::ElastiCache::SubnetGroup'
@@ -34,6 +37,7 @@ Resources:
       ClusterName: !Sub '${UniqueAppName}-cache'
       AutoMinorVersionUpgrade: true
       Engine: redis
+      EngineVersion: 5.0 # must be compatible with the parameter group family 5.0.6
       CacheNodeType: !Ref cacheNodeType
       NumCacheNodes: 1
       CacheParameterGroupName: !Ref PimcoreRedisCacheParameterGroup
@@ -44,7 +48,7 @@ Resources:
     Type: 'AWS::ElastiCache::ParameterGroup'
     Properties:
       Description: Redis Cache Parameter Group Settings
-      CacheParameterGroupFamily: redis5.0
+      CacheParameterGroupFamily: !Ref redisParameterGroupFamily
       Properties: # @see https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/ParameterGroups.Redis.html
         maxmemory-policy: 'volatile-lru'
   PimcoreRedisSession:
@@ -54,6 +58,7 @@ Resources:
       ClusterName: !Sub '${UniqueAppName}-sessions'
       AutoMinorVersionUpgrade: true
       Engine: redis
+      EngineVersion: 5.0
       CacheNodeType: !Ref sessionNodeType
       NumCacheNodes: 1
       SnapshotRetentionLimit: 0
@@ -64,7 +69,7 @@ Resources:
     Type: 'AWS::ElastiCache::ParameterGroup'
     Properties:
       Description: Redis Session Parameter Group Settings
-      CacheParameterGroupFamily: redis5.0
+      CacheParameterGroupFamily: !Ref redisParameterGroupFamily
       Properties:
         maxmemory-policy: 'noeviction'
 Outputs:
