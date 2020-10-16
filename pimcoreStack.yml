@@ -171,3 +171,7 @@ Resources:
         VpcId: !GetAtt PimcoreVPC.Outputs.VpcId
         VpcSecurityGroupId: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
         SubnetId: !GetAtt PimcoreVPC.Outputs.PublicSubnet1
+
+Outputs:
+  LoadBalancerDNS:
+    Value: !GetAtt PimcoreVPC.Outputs.HostedUrl

@@ -155,3 +155,5 @@ Outputs:
     Value: !Ref PublicLoadBalancerSecurityGroup
   loadBalancerHostedZoneId:
     Value: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID
+  HostedUrl:
+    value: !Sub '${UniqueAppName}.${DomainName}'

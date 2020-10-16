@@ -61,6 +61,7 @@ Resources:
               - secretsmanager:* # test
               - acm:RequestCertificate # for ACM certificate creation
               - acm:DescribeCertificate
+              - acm:DeleteCertificate # important for cleanup
               - route53:*
             Resource: '*'
       Groups:
