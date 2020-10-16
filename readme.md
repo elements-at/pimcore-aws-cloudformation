@@ -1,6 +1,7 @@
 # Pimcore AWS Cloudformation Template
 
-This repository provides a cloudformation template with nested stacks to spin up a complete Pimcore application stack in ECS.
+This repository provides a AWS cloud formation (CFN) template with nested stacks to spin up a complete Pimcore application stack in ECS.
+An additional CFN template is provided to simplify remote installation of CFN and resources.
 
 Nested Stacks:
  - ``Users`` IAM users for setup and ECS task execution.
@@ -13,6 +14,8 @@ Nested Stacks:
  - ``Bastion`` EC2 Bastion Host with SSM Agent installed, for accessing and diagnosing private resources inside the VPC.
  
  ---
+ ![Deployed CFN example](docs/img/cfn-2.png)
+ 
  
  ### Usage
  
@@ -30,6 +33,8 @@ Nested Stacks:
  6. Download the Pimcore CFN stack templates and execute cloud formation. git clone <repository-url>. 
  
  7. Execute ``bin/package-cloudformation.sh`` to actually pack, upload and install the cloudformation template. You will need a S3 bucket for your action.
+ 
+ 8. After the stack is up and running, you can switch to the [Pimcore AWS Deployer](https://gitlab.elements.at/internal-projects/pimcore-aws-deployer) to start running test images.
  
  ### Common Questions
  
