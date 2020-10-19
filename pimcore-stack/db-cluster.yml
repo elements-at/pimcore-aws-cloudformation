@@ -5,7 +5,6 @@ Description: RDS cluster with writer and reader instance
 Parameters:
   UniqueAppName:
     Type: String
-
   SubnetId1:
     Type: AWS::EC2::Subnet::Id
   SubnetId2:
@@ -75,7 +74,7 @@ Resources:
   PimcoreRDSMasterSecret:
     Type: 'AWS::SecretsManager::Secret'
     Properties:
-      Name: !Sub '${UniqueAppName}-db-master-secret'
+      Name: !Sub '${UniqueAppName}/db-master-secret'
       Description: "RDS Secret."
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DatabaseUser}"}'

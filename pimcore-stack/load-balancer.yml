@@ -156,4 +156,4 @@ Outputs:
   loadBalancerHostedZoneId:
     Value: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID
   HostedUrl:
-    value: !Sub '${UniqueAppName}.${DomainName}'
+    Value: !Sub '${UniqueAppName}.${DomainName}'

@@ -174,4 +174,4 @@ Resources:
 
 Outputs:
   LoadBalancerDNS:
-    Value: !GetAtt PimcoreVPC.Outputs.HostedUrl
+    Value: !GetAtt PimcoreLoadBalancerResources.Outputs.HostedUrl
