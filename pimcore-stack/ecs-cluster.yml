@@ -75,8 +75,25 @@ Resources:
       LogGroupName: !Sub '/pimcore/${UniqueAppName}/ecs'
       RetentionInDays: 7
 
+  # @see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-secretsmanager-secret.html
+  PimcoreAwsDeployerAuthAccess:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: !Sub '${UniqueAppName}/pimcore-aws-deployer-auth' #important reference for Pimcore AWS deployer
+      Description: "Pimcore AWS Deployer Authentication"
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "pimcore-aws-deployer"}'
+        GenerateStringKey: "password"
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Name
+          Value: !Sub '${UniqueAppName}-aws-deployer-auth'
+
   TaskDefinitionPimcoreFrontend:
     Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - PimcoreAwsDeployerAuthAccess
     Description: 'Pimcore ECS Fargate Frontend Container Task Description'
     Properties:
       RequiresCompatibilities:
@@ -119,6 +136,9 @@ Resources:
               Value: !Ref S3BucketName
             - Name: AWS_REGION
               Value: !Ref AWS::Region
+          Secrets:
+            - Name: PIMCORE_AWS_DEPLOYER_AUTH
+              ValueFrom: !Ref PimcoreAwsDeployerAuthAccess #!Sub '{{resolve:secretsmanager:${PimcoreAwsDeployerAuthAccess}::password}}'
           PortMappings:
             - ContainerPort: 80
               HostPort: 80
@@ -194,3 +214,5 @@ Outputs:
     Value: !Ref TaskDefinitionPimcoreFrontend
   TaskDefinitionPimcoreCli:
     Value: !Ref TaskDefinitionPimcoreCli
+  PimcoreAwsDeployerAuth:
+    Value: !Ref PimcoreAwsDeployerAuthAccess
