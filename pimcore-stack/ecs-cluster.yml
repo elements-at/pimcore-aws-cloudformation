@@ -90,6 +90,18 @@ Resources:
         - Key: Name
           Value: !Sub '${UniqueAppName}-aws-deployer-auth'
 
+  MySqlUserPassword: #improvement: move to db-cluster and create user with lambda?
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: !Sub '${UniqueAppName}/mysql-password'
+      Description: "MySQL user password"
+      GenerateSecretString:
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Name
+          Value: !Sub '${UniqueAppName}-mysql-secret'
+
   TaskDefinitionPimcoreFrontend:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
@@ -116,8 +128,6 @@ Resources:
               Value: !Ref DbName
             - Name: MYSQL_USER
               Value: !Ref DbUser
-#            - Name: MYSQL_PASSWORD #improvement: use secrets manager instead. -> in private subnet though
-#              Value: !Ref DbPassword
             - Name: MYSQL_PORT
               Value: !Ref DbPrimaryPort
             - Name: REDIS_CACHE_HOST
@@ -138,7 +148,10 @@ Resources:
               Value: !Ref AWS::Region
           Secrets:
             - Name: PIMCORE_AWS_DEPLOYER_AUTH
-              ValueFrom: !Ref PimcoreAwsDeployerAuthAccess #!Sub '{{resolve:secretsmanager:${PimcoreAwsDeployerAuthAccess}::password}}'
+              ValueFrom: !Ref PimcoreAwsDeployerAuthAccess
+            - Name: MYSQL_PASSWORD
+              ValueFrom: !Ref MySqlUserPassword
+
           PortMappings:
             - ContainerPort: 80
               HostPort: 80
