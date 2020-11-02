@@ -31,7 +31,8 @@ Parameters:
     Default: false
 
   # todo pass setupUserARN and connect it with bastion host + S3 ?
-  #
+  # todo validated wildcard certificate for load balancer?
+  # todo cognito protection?
   # CognitoProtection: true/false
   #
 
@@ -87,6 +88,7 @@ Resources:
         Subnet2: !GetAtt PimcoreVPC.Outputs.PublicSubnet2
         SecurityGroup1: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
         ExistingCertificateARN: !Ref ExistingCertificateARN
+        CertificateValidationRole: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskExecutionRole
 
   PimcoreElastiCacheInstancesStack:
     Type: AWS::CloudFormation::Stack
@@ -123,6 +125,7 @@ Resources:
           !GetAtt PimcoreVPC.Outputs.SecurityGroup1,
           !GetAtt PimcoreEcsClusterPermissions.Outputs.SecurityGroupGreen,
           !GetAtt PimcoreEcsClusterPermissions.Outputs.SecurityGroupBlue]]
+        #LambdaDbUserCreationRole: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskExecutionRole
       Tags:
         - Key: Name
           Value: !Sub '${App}-${Env}-rds-stack'
@@ -151,6 +154,7 @@ Resources:
         DbReadPort: !GetAtt PimcoreDBCluster.Outputs.DbReadPort
         DbName: !GetAtt PimcoreDBCluster.Outputs.DbName
         DbUser: !GetAtt PimcoreDBCluster.Outputs.DbUser
+        DbUserSecret: !GetAtt PimcoreDBCluster.Outputs.DbUserSecret
         Subnet1: !GetAtt PimcoreVPC.Outputs.Subnet1
         Subnet2: !GetAtt PimcoreVPC.Outputs.Subnet2
         SecurityGroup1: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
@@ -164,6 +168,7 @@ Resources:
     DependsOn:
       - PimcoreUsers
       - PimcoreVPC
+      - PimcoreDBCluster
     Properties:
       TemplateURL: pimcore-stack/ec2-bastion.yml
       Parameters:
@@ -171,7 +176,14 @@ Resources:
         VpcId: !GetAtt PimcoreVPC.Outputs.VpcId
         VpcSecurityGroupId: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
         SubnetId: !GetAtt PimcoreVPC.Outputs.PublicSubnet1
-
+        DbPrimaryEndpoint: !GetAtt PimcoreDBCluster.Outputs.DbPrimaryEndpoint
+        DbReadEndpoint: !GetAtt PimcoreDBCluster.Outputs.DbReadEndpoint
+        DbName: !GetAtt PimcoreDBCluster.Outputs.DbName
+        DbMasterUser: !GetAtt PimcoreDBCluster.Outputs.DbMasterUser
+        DbMasterSecret: !GetAtt PimcoreDBCluster.Outputs.DbMasterSecret
+        #DbMasterPassword: !Join [ "{{resolve:secretsmanager:", [ !GetAtt PimcoreDBCluster.Outputs.DbMasterSecret, "::password}}'" ] ]
+        DbUser: !GetAtt PimcoreDBCluster.Outputs.DbUser
+        DbUserSecret: !GetAtt PimcoreDBCluster.Outputs.DbUserSecret
 Outputs:
   LoadBalancerDNS:
     Value: !GetAtt PimcoreLoadBalancerResources.Outputs.HostedUrl

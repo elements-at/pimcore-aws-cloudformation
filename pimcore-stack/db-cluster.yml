@@ -11,8 +11,12 @@ Parameters:
     Type: AWS::EC2::Subnet::Id
   SecurityGroupList:
     Type: List<AWS::EC2::SecurityGroup::Id>
-  DatabaseUser:
+  DatabaseMasterUser:
     Default: pimcoreadmin
+    Type: String
+    Description: Database admin account name
+  DatabaseUser:
+    Default: pimcoreapp
     Type: String
     Description: Database admin account name
   DatabaseName:
@@ -24,13 +28,12 @@ Parameters:
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
     ConstraintDescription: Name must begin with a letter and contain only alphanumeric characters
   DatabaseEngine:
-    Default: aurora
+    Default: aurora-mysql
     Type: String
     Description: Database engines - Aurora MySQL or Aurora PostgreSQL
     ConstraintDescription: Choose an engine from the drop down
     AllowedValues:
-      - aurora
-      - aurora-postgresql
+      - aurora-mysql
   ActivateReadReplica:
     Type: String
     Default: false
@@ -63,6 +66,9 @@ Parameters:
     Type: String
     Description: The size of the database (GiB)
 
+#  LambdaDbUserCreationRole:
+#      Type: String
+
 Conditions:
   ActivateReadReplica: !Equals [ !Ref ActivateReadReplica, true ]
 Resources:
@@ -77,13 +83,26 @@ Resources:
       Name: !Sub '${UniqueAppName}/db-master-secret'
       Description: "RDS Secret."
       GenerateSecretString:
-        SecretStringTemplate: !Sub '{"username": "${DatabaseUser}"}'
+        SecretStringTemplate: !Sub '{"username": "${DatabaseMasterUser}"}'
         GenerateStringKey: "password"
         PasswordLength: 30
-        ExcludeCharacters: '"@/\'
+        ExcludeCharacters: '"@/\><'
       Tags:
         - Key: Name
           Value: !Sub '${UniqueAppName}-master-secret'
+
+  PimcoreAppSecret:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: !Sub '${UniqueAppName}/db-pimcore-app-secret'
+      Description: !Sub "Secret that should be used by Pimcore applications to access the database (user ${DatabaseUser})"
+      GenerateSecretString:
+        #no json to simplify ECS service integration
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\><'
+      Tags:
+        - Key: Name
+          Value: !Sub '${UniqueAppName}-db-app-secret'
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -101,12 +120,13 @@ Resources:
     Properties:
       Description: "CloudFormation Sample Aurora Cluster Parameter Group"
       #Family: mysql5.6 #mariadb10.4 # call aws rds describe-db-engine-versions --query "DBEngineVersions[].DBParameterGroupFamily" to see all parameters
-      Family: aurora5.6
+      Family: aurora-mysql5.7
       Parameters:
         # @see https://pimcore.com/docs/6.x/Development_Documentation/Installation_and_Upgrade/System_Requirements.html#page_System-Variables
         innodb_file_format: Barracuda
         innodb_large_prefix: 1
         innodb_file_per_table: 1
+        innodb_default_row_format: DYNAMIC #see https://github.com/laravel/framework/issues/22660
         # @see https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.Concepts.MySQL.html#USER_LogAccess.MySQL.Generallog
         slow_query_log: 1
         long_query_time: 5
@@ -117,7 +137,8 @@ Resources:
     Type: AWS::RDS::DBCluster
     Properties:
       Engine: !Ref DatabaseEngine
-      MasterUsername: !Ref DatabaseUser
+      #EngineVersion: "5.7.mysql_aurora.2.09.0"
+      MasterUsername: !Ref DatabaseMasterUser
       MasterUserPassword: !Sub '{{resolve:secretsmanager:${PimcoreRDSMasterSecret}::password}}'
       DBSubnetGroupName: !Ref DatabaseSubnetGroup
       StorageEncrypted: !Ref EncryptionAtRest
@@ -125,6 +146,7 @@ Resources:
       DeletionProtection: false
       #BackupRetentionPeriod: 1
       #EnableIAMDatabaseAuthentication: true #TODO - test @see https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.html
+                                             # >>For Aurora MySQL, all DB instance classes are supported, except for db.t2.small and db.t3.small.
       EnableHttpEndpoint: true # enable Data API (only works for Aurora serverless?)
       DBClusterParameterGroupName: !Ref PimcoreRDSDBClusterParameterGroup #!If [ IsAuroraMySQL,  default.aurora5.6, default.aurora-postgresql9.6 ]
       VpcSecurityGroupIds: !Ref SecurityGroupList
@@ -161,6 +183,108 @@ Resources:
         - Key: Name
           Value: !Ref AWS::StackName
     DependsOn: PimcoreDbCluster
+
+#  PimcoreDbAppUser: #requires additional mysql node.js layer from s3, so not a real alternative.
+#    Type: AWS::Lambda::Function
+#    Properties:
+#      Description: Create Db app user via Lambda.
+#      Runtime: nodejs12.x
+#      Role: !Ref LambdaDbUserCreationRole
+#      Handler: index.handler
+#      VpcConfig:
+#        SecurityGroupIds: !Ref SecurityGroupList
+#        SubnetIds:
+#          - !Ref SubnetId1
+#          - !Ref SubnetId2
+#
+#      #Layers:
+#        # would require additional node.js mysql layer...
+#      Code:
+#          ZipFile: |
+#            'use strict';
+#
+#            const AWS = require('aws-sdk');
+#            const mysql = require('mysql');
+#
+#            exports.handler = (event, context, callback) => {
+#
+#                let masterSecretArn = event.DbMasterUserSecretArn;
+#                let appSecretArn = event.DbAppUserSecretArn;
+#
+#                let masterSecretData = extractSecretAsync(masterSecretArn);
+#                let appSecretData = extractSecretAsync(appSecretArn);
+#
+#                return Promise.all([masterSecretData, appSecretData]).then((values) => {
+#                    let masterPassword = extractPasswordFromSecretData(values[0]);
+#                    let appPassword = extractPasswordFromSecretData(values[1]);
+#                    return initDbAppUser(event, context, callback, masterPassword, appPassword);
+#                });
+#            };
+#
+#            async function initDbAppUser(event, context, callback, masterPassword, appPassword) {
+#
+#              console.log('MasterPassword', masterPassword);
+#              console.log('appPassword', appPassword);
+#
+#              appPassword = masterPassword;
+#
+#              let connection = mysql.createConnection({
+#                  host     : event.DbPrimaryEndpoint, //'demo-staging-pimcoredbcluster-c8-pimcoredbcluster-1u541mogahnqj.cluster-cb3cz1qhaqrs.eu-central-1.rds.amazonaws.com',
+#                  user     : event.DbMasterUser, //'pimcoreadmin',
+#                  password : masterPassword, //"I?Da|}OmH5>XI'dxFDX%2-TbNs0XEO",
+#                  port     : 3306,
+#                  database: event.DbName, //PimcoreDB
+#                  debug    :  false,
+#                  multipleStatements: true
+#              });
+#
+#              let query = "CREATE USER IF NOT EXISTS '"+event.DbAppUser+"'@'%' IDENTIFIED BY \""+appPassword+"\";GRANT ALL ON `"+event.DbName+"`.* TO '"+event.DbAppUser+"'@'%';";
+#
+#              try {
+#                let response = await new Promise((res, rej) => {
+#                       connection.query(query, (err, row) => {
+#                            if (err) {
+#                              return rej(err);
+#                            }
+#                            res(row);
+#                        });
+#                });
+#                return {'status': 'OK', 'message': 'Successfully created db user ' + event.DbAppUser + ' and granted privileges for '+ event.DbName+'.'};
+#              } catch (err) {
+#                return {'status': 'NOTOK', 'message': err};
+#              } finally {
+#                connection.destroy();
+#                connection.end();
+#              }
+#            }
+#
+#            function extractPasswordFromSecretData(secretData) {
+#                let pwd = secretData.SecretString;
+#                  if (pwd.indexOf('password') > 0) {
+#                    pwd = JSON.parse(pwd).password;
+#                  } else {
+#                    pwd = secretData.SecretString;
+#                  }
+#                  return pwd;
+#            }
+#
+#            function extractSecret(secretName) {
+#              const client = new AWS.SecretsManager();
+#              return client.getSecretValue({SecretId: secretName}).promise();
+#            }
+#
+#
+#            async function extractSecretAsync(secretName) {
+#              let response = await extractSecret(secretName);
+#              return response;
+#            }
+#
+#        VpcConfig:
+#          SecurityGroupIds:
+#            - sg-085912345678492fb
+#          SubnetIds:
+#            - subnet-071f712345678e7c8
+#            - subnet-07fd123456788a036
 Outputs:
   DbPrimaryEndpoint:
     Value: !GetAtt PimcoreDBWriterInstance.Endpoint.Address
@@ -172,5 +296,13 @@ Outputs:
     Value: !If [ ActivateReadReplica, !GetAtt PimcoreDBReaderInstance.Endpoint.Port, 0 ]
   DbName:
     Value: !Ref DatabaseName
+  DbMasterUser:
+    Value: !Ref DatabaseMasterUser
+  DbMasterSecret:
+    Value: !Ref PimcoreRDSMasterSecret
+  DbMasterPassword:
+    Value: !Sub '{{resolve:secretsmanager:${PimcoreRDSMasterSecret}::password}}'
   DbUser:
     Value: !Ref DatabaseUser
+  DbUserSecret:
+    Value: !Ref PimcoreAppSecret

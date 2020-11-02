@@ -38,7 +38,7 @@ Nested Stacks:
  
  ### Common Questions
  
-How can I deploy the nested stack? 
+##### How can I deploy the nested stack? 
 The simplest way is to use the ``AWS-CLI`` tool to package the nested templates and upload them to S3:
 
  ```
@@ -54,7 +54,7 @@ aws cloudformation deploy --template-file ${BASE_DIR}/config/cloudformation/pack
  
  ---
  
- How can I connect to the Bastion host?
+ ##### How can I connect to the Bastion host?
  
  The simplest and most secure way is to use the SSM Agent.
  You can connect directly based on the AWS console, there is no need to establish as SSH connection.
@@ -67,15 +67,49 @@ aws cloudformation deploy --template-file ${BASE_DIR}/config/cloudformation/pack
  ```
   ssh-keygen 
  ```
- 
- Upload ``~./ssh/id_rsa.pub`` to your EC2 server instance using SSM and add the public key to ``~/.ssh/authorized_keys``.
- Now you can connect from the client.
+
+Upload ``~./ssh/id_rsa.pub`` to your EC2 server instance using SSM and add the public key to ``~/.ssh/authorized_keys``.
+Now you can connect from the client.
  
  Example:
  
  ```
  ssh -i id_rsa ssm-user@ec2-3-125-43-205.eu-central-1.compute.amazonaws.com
  ```
+ 
+ > Attention: Ensure to ``chmod 700 ~/ssh/authorized_keys`` !
+ 
+ ##### How do I configure the initial database setting based on the Bastion host?
+ 
+ 1. Connect to the bastion host using the AWS console.
+ 2. Open the deployed cloudformation stack in another browser tab and copy the DB endpoint and the DB username from the output of the PimcoreDBCluster sub stack.
+ 3. Open the [Secrets Manager](https://eu-central-1.console.aws.amazon.com/secretsmanager/home?region=eu-central-1#/listSecrets) in another tab.
+ 4. Execute ``mysql -h<endpoint-from-cloudformation-db-cluster-output> -u<master-from-cloudformation-db-cluster-output> -p`` and add the secret from the secrets manager.
+ Example: ``mysql -hdpub8cod489kqg.cb3cz1qhaqrs.eu-central-1.rds.amazonaws.com -upimcoreadmin -p``.
+ 5. ``show databases;`` will give you the following output:  
+ ```
+ mysql> show databases ;
+ +--------------------+
+ | Database           |
+ +--------------------+
+ | information_schema |
+ | PimcoreDB          |
+ | mysql              |
+ | performance_schema |
+ +--------------------+
+ 4 rows in set (0.06 se
+ ``` 
+ 
+ 6. Next, create a database user based on the cloudformation output in order to let the ECS services connect to the DB.
+ The associated CFN substack is called ``PimcoreEcsCluster``. There you will find username and the linked password resource (secrets manager).
+ Command to execute in the shell:
+ ```
+CREATE USER 'ecs-pimcore-user'@'localhost' IDENTIFIED BY '7a>VjIeoH*Jm]~IFPpbA<Z8j0>D:dT';
+GRANT ALL ON `PimcoreDB`.* TO 'ecs-pimcore-user'@'localhost';
+ ```
+ 
+ mysql -hdpub8cod489kqg.cb3cz1qhaqrs.eu-central-1.rds.amazonaws.com -uecs-pimcore-user -p
+ 
  
  ---
  

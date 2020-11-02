@@ -1,11 +1,27 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Create a Pimcore DEV box (optional), befor you create an actual pimcore stack."
+Description: "Create a Pimcore Admin tool box (optional), before the actual pimcore stack is created."
 # @see https://www.trek10.com/blog/cloudformation-nested-stacks-primer
 Parameters:
   Prefix:
     Type: String
     Default: 'Pimcore'
+#  WildcardCertificateDomainName:
+#    Type: String
+#    Description: Name of your (root) test domain, such as "pimcore.xyz", when *.pimcore.xyz should be hosted.
+#Conditions:
+#  CreateWildcardCertificate: !Not [ !Equals [ !Ref WildcardCertificateDomainName, "" ]]
 Resources:
+
+#  DomainWildcardCertificate:
+#    Condition: CreateWildcardCertificate
+#    Type: AWS::CertificateManager::Certificate
+#    Properties:
+#      DomainName: !Ref WildcardCertificateDomainName
+#      DomainValidationOptions:
+#        - DomainName: !Ref WildcardCertificateDomainName
+#          ValidationDomain: !Ref WildcardCertificateDomainName
+#      ValidationMethod: DNS
+
   #
   # Setup User is used to install the cloudformation environment from your local (docker) environment.
   # @see https://policysim.aws.amazon.com/ for simulating policies
@@ -67,9 +83,11 @@ Resources:
       Groups:
         - !Sub '${Prefix}-setupUserGroup'
 
+
   # TODOs
   # offer S3 bucket for CFN templates
   # offer ECR repository for docker image upload?
+  # wildcard certificate?
 
 Outputs:
   SetupUserAccessKey:

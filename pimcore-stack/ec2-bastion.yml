@@ -13,7 +13,22 @@ Parameters:
   BastionImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-ebs
-
+  DbPrimaryEndpoint:
+    Type: String
+  DbReadEndpoint:
+    Type: String
+  DbName:
+    Type: String
+  DbMasterUser:
+    Type: String
+  DbMasterSecret:
+    Type: String
+  #DbMasterPassword:
+  #  Type: String
+  DbUser:
+    Type: String
+  DbUserSecret:
+    Type: String
 Resources:
   PimcoreBastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -87,12 +102,82 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}-Bastion'
-      UserData:
-        Fn::Base64: "
-        #!/bin/bash
-        cd /tmp;
-        sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm;
-        sudo systemctl enable amazon-ssm-agent;
-        sudo systemctl start amazon-ssm-agent;
-        sudo yum install -y mysql
-        "
+      # see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-general.html
+      # http://169.254.169.254/latest/user-data
+      UserData: # @see vi /var/log/cloud-init-output.log
+        #@see https://aws.amazon.com/premiumsupport/knowledge-center/execute-user-data-ec2/
+        Fn::Base64: !Sub |
+          Content-Type: multipart/mixed; boundary="//"
+          MIME-Version: 1.0
+
+          --//
+          Content-Type: text/cloud-config; charset="us-ascii"
+          MIME-Version: 1.0
+          Content-Transfer-Encoding: 7bit
+          Content-Disposition: attachment; filename="cloud-config.txt"
+
+          #cloud-config
+          cloud_final_modules:
+          - [scripts-user, always]
+
+          --//
+          Content-Type: text/x-shellscript; charset="us-ascii"
+          MIME-Version: 1.0
+          Content-Transfer-Encoding: 7bit
+          Content-Disposition: attachment; filename="userdata.txt"
+
+          #!/bin/bash
+          set -x
+          sudo yum update -y
+          cd /tmp
+          sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          sudo systemctl enable amazon-ssm-agent
+          sudo systemctl start amazon-ssm-agent
+          sudo yum install -y mysql
+          # make a directory to simplify the transmission of mysql dumps
+          mkdir /home/ssm-user/backups
+          chmod 777 /home/ssm-user/backups
+
+          echo "\
+            *** Pimcore recommends to perform the following steps on the initial setup. ***
+            1. Create the app DB user by executing ./setup-db-app-user.sh
+            2. Setup remote SSH connection by adding an authorized key in ~/.ssh/authorized_keys (see https://gitlab.elements.at/internal-projects/pimcore-aws-cloudformation).
+            3. As soon as connected you can transfer and install DB dumps. See https://gitlab.elements.at/internal-projects/docker-tools for more details.
+          " > /home/ssm-user/getting-started-pimcore-cloud
+
+          # Install DB user Script
+          echo "\
+          echo ****************************************************************************************************************************************
+          echo *** This script will install the Pimcore App DB user and grant it permissiont to access the ${DbName} database. ***
+          echo *** Please obtain the master password and the app user password from the AWS secrets manager.***
+          echo *** It is important that you take the password from the secrets manager as otherwise the ECS services cannot connect to the DB. ***
+          echo *** Once you are done, the DB data can be deployed. ***
+          echo ****************************************************************************************************************************************
+
+          read -p \"Please enter the Pimcore DB app user password (from secrets manager):\" appUserPasswordEnteredByUser
+          echo \"Going to execute query with db user ${DbMasterUser} (please copy from secrets manager):\"
+
+          mysql -h${DbPrimaryEndpoint} -u${DbMasterUser} -p -Bse \"show databases; ALTER USER IF NOT EXISTS '${DbUser}'@'%' IDENTIFIED BY '\${!appUserPasswordEnteredByUser}'; \
+          GRANT ALL ON ${DbName}.* TO '${DbUser}'@'%';\"
+
+          echo \"*** Executed command. You can now try to login as user  ${DbUser}. ***\"
+
+          " > /home/ssm-user/setup-db-app-user.sh
+
+          chmod +x +w /home/ssm-user/setup-db-app-user.sh
+
+          # Install DB Dump from backup directory
+          echo "\
+          echo \"****************************************************************************************************************************************\"
+          echo \"*** This script provides a template to install uploaded mysqldumps from ~/backups/aurora-PimcoreDB.sql into the ${DbName} database. ***\"
+          echo \"*** Please enter the password of the ${DbUser}, which you got from your admin, and is located in the AWS secrets manager.***\"
+          echo \"****************************************************************************************************************************************\"
+
+          mysql -h${DbPrimaryEndpoint} -u${DbUser} -p < /home/ssm-user/backups/aurora-PimcoreDB.sql
+
+          echo \"*** Installed dump into ${DbName}. ***\"
+
+          " > /home/ssm-user/install-db-dump.sh
+
+          chmod +x +w /home/ssm-user/install-db-dump.sh
+          --//
