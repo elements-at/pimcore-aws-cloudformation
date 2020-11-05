@@ -1,31 +1,30 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: "Create a Pimcore Admin tool box (optional), before the actual pimcore stack is created."
-# @see https://www.trek10.com/blog/cloudformation-nested-stacks-primer
 Parameters:
   Prefix:
     Type: String
+    Description: A common prefix for users and resources
     Default: 'Pimcore'
-#  WildcardCertificateDomainName:
-#    Type: String
-#    Description: Name of your (root) test domain, such as "pimcore.xyz", when *.pimcore.xyz should be hosted.
-#Conditions:
-#  CreateWildcardCertificate: !Not [ !Equals [ !Ref WildcardCertificateDomainName, "" ]]
+  S3BucketName:
+    Type: String
+    Default: 'pimcore-utility-bucket'
+  EcrRepositoryName:
+    Type: String
+    Default: 'pimcore-company-ecr'
+    Description: 'Set to false if a ECR docker image repository should not be created.'
+  WildcardCertificateDomainName:
+    Type: String
+    Default: false
+    Description: Name of your (root) test domain, such as "pimcore.xyz", when *.pimcore.xyz should be hosted.
+
+Conditions:
+  CreateEcr: !Not [ !Equals [ !Ref EcrRepositoryName, "false" ]]
+  CreateWildcardCertificate: !Not [ !Equals [ !Ref WildcardCertificateDomainName, "false" ]]
+
 Resources:
-
-#  DomainWildcardCertificate:
-#    Condition: CreateWildcardCertificate
-#    Type: AWS::CertificateManager::Certificate
-#    Properties:
-#      DomainName: !Ref WildcardCertificateDomainName
-#      DomainValidationOptions:
-#        - DomainName: !Ref WildcardCertificateDomainName
-#          ValidationDomain: !Ref WildcardCertificateDomainName
-#      ValidationMethod: DNS
-
   #
   # Setup User is used to install the cloudformation environment from your local (docker) environment.
-  # @see https://policysim.aws.amazon.com/ for simulating policies
-  # Currently has permissions to execute copilot and perform cloudformation deployments
+  # @see https://policysim.aws.amazon.com/ for simulating policies.
   #
   SetupUser:
     Type: 'AWS::IAM::User'
@@ -42,12 +41,10 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEC2FullAccess
         - arn:aws:iam::aws:policy/AmazonECS_FullAccess
         - arn:aws:iam::aws:policy/AWSLambdaFullAccess
-        #- arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
         - arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
         - arn:aws:iam::aws:policy/AmazonRDSFullAccess
         - arn:aws:iam::aws:policy/CloudFrontFullAccess
-#        - arn:aws:iam::aws:policy/SecretsManagerReadWrite
-    # attention: max 10 managed policies
+        # attention: max 10 managed policies
   AddSetupUserToGroup:
     Type: 'AWS::IAM::UserToGroupAddition'
     DependsOn: SetupUserGroup
@@ -77,17 +74,110 @@ Resources:
               - secretsmanager:* # test
               - acm:RequestCertificate # for ACM certificate creation
               - acm:DescribeCertificate
-              - acm:DeleteCertificate # important for cleanup
+              - acm:DeleteCertificate # important for cleanup of certificates
               - route53:*
+              - ecr:*
             Resource: '*'
       Groups:
         - !Sub '${Prefix}-setupUserGroup'
 
 
-  # TODOs
-  # offer S3 bucket for CFN templates
-  # offer ECR repository for docker image upload?
-  # wildcard certificate?
+  #
+  # S3 Bucket as a preparation for CFN deployments with nested stacks
+  #
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Description: S3 Bucket as a preparation for CFN deployments with nested stacks.
+    #DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+      BucketName: !Sub '${S3BucketName}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    #DeletionPolicy: Retain
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ForceHTTPS
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
+            Condition:
+              Bool:
+                "aws:SecureTransport": false
+          - Sid: UploadUserAccess
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt SetupUser.Arn
+            Action: 's3:*'
+            Resource:
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
+          - Sid: SetupUserAccess
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt SetupUser.Arn
+            Action: 's3:*'
+            Resource:
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
+      Bucket: !Ref S3Bucket
+
+  S3BucketAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: !Sub 'Grants CRUD access to the S3 bucket ${S3Bucket}'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: S3ObjectActions
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:PutObjectACL
+              - s3:PutObjectTagging
+              - s3:DeleteObject
+              - s3:RestoreObject
+            Resource:
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
+          - Sid: S3ListAction
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource:
+              - !Sub ${S3Bucket.Arn}/*
+              - !Sub ${S3Bucket.Arn}
+
+  #
+  # ECR | Docker Image Repository for continuous ECS deployments.
+  #
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Condition: CreateEcr
+    Properties:
+      RepositoryName: !Ref EcrRepositoryName
+
+  #
+  # Domain wildcard certificate creation. The certificate can be used as an input for other Pimcore stacks.
+  #
+  DomainWildcardCertificate:
+    Condition: CreateWildcardCertificate
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref WildcardCertificateDomainName
+      DomainValidationOptions:
+        - DomainName: !Ref WildcardCertificateDomainName
+          ValidationDomain: !Ref WildcardCertificateDomainName
+      ValidationMethod: DNS
 
 Outputs:
   SetupUserAccessKey:
@@ -99,3 +189,16 @@ Outputs:
   SetupUserArn:
     Description: "Setup User ARN"
     Value: !GetAtt SetupUser.Arn
+  AwsRegion:
+    Description : AWS Region
+    Value: !Ref AWS::Region
+  S3BucketName:
+    Description: S3 Bucket Name for Cloudformation Deployments etc.
+    Value: !Ref S3BucketName
+  EcrRepository:
+    Description: ECR Repository
+    Value: !Ref EcrRepository
+  DomainWildcardCertificate:
+    Description: "Wildcard Certificate that can be used across various applications within one domain range.
+    Particulary useful as AWS has a default limit of 20 contingents a year per account."
+    Value: !Ref WildcardCertificateDomainName

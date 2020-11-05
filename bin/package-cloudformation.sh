@@ -3,7 +3,7 @@
 # Combines nested stacks into a packed template and deploys the change-set in AWS.
 # Currently parameters are hardcoded.
 
-
+DEFAULT_BUCKET_NAME="pimcore-utility-bucket"
 
 BASE_DIR="${HOME}/pimcore-aws-cloudformation" #adjust as you like
 
@@ -11,8 +11,8 @@ BASE_DIR="/ecs-cluster/pimcore-aws-cloudformation"
 
 echo "==== Package ${BASE_DIR}/pimcoreStack... ===="
 
-read -p "Please name a S3 bucket for packaging the cloudformation templates [cloudformationdeployment]:" packagingBucket
-packagingBucket=${packagingBucket:-'cloudformationdeployment'}
+read -p "Please name a S3 bucket for packaging the cloudformation templates [${DEFAULT_BUCKET_NAME}]:" packagingBucket
+packagingBucket=${packagingBucket:-${DEFAULT_BUCKET_NAME}}
 
 aws cloudformation package --template-file ${BASE_DIR}/pimcoreStack.yml \
     --output-template ${BASE_DIR}/packagedPimcoreStack.yml \
