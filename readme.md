@@ -10,7 +10,7 @@ Nested Stacks:
  - ``Load Balancer`` Load Balancer configuration attached to VPC and prepared for deployment scenarios.
  - ``Elastic Cache`` Two Redis instances for caching and session management.
  - ``DB Cluster`` Aurora MySQL DB cluster. Optionally, a read-only DB instance can be activated.
- - ``ECS Cluster`` Farate ECS cluster with App and CLI task definitions, as the boilerplate for installing tasks and services.
+ - ``ECS Cluster`` Fargate ECS cluster with App and CLI task definitions, as the boilerplate for installing tasks and services.
  - ``Bastion`` EC2 Bastion Host with SSM Agent installed, for accessing and diagnosing private resources inside the VPC.
  
  ---
@@ -36,7 +36,17 @@ Nested Stacks:
  
  8. After the stack is up and running, you can switch to the [Pimcore AWS Deployer](https://gitlab.elements.at/internal-projects/pimcore-aws-deployer) to start running test images.
  
+ > Pimcore AWS Deployer is an internal Elements project, which is currently not available for public usage. 
+ If you are interested, contact andreas.gruenwald@elements.at.
+ 
  ### Common Questions
+ 
+##### The installation of the ``pimcoreDevBox`` gets stuck during the DNS Validation. What do I need to do?
+When the wildcard certificate is installed, manual DNS validation is required.
+Switch to the [Certificate Manager](https://eu-central-1.console.aws.amazon.com/acm/home), export the DNS
+data and manually create a CNAME record for your domain in order to perform the DNS validation.
+For details, see https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-validate-dns.html. The issue will
+take some minutes, and can take even hours.
  
 ##### How can I deploy the nested stack? 
 The simplest way is to use the ``AWS-CLI`` tool to package the nested templates and upload them to S3:
@@ -118,5 +128,5 @@ GRANT ALL ON `PimcoreDB`.* TO 'ecs-pimcore-user'@'localhost';
  - Delete / stop all ECS cluster services and then delete the entire stack.
  - Don't delete single nested stacks.
  - If the stack is pending, then observe if there are resources connected that are not part of the stack and have to be deleted manually.
- 
+ - If some of the nested stacks cannot be deleted the first time, try another again, until all resources are deleted.
  If resources cannot be deleted, try [AWS Nuke](https://github.com/rebuy-de/aws-nuke).

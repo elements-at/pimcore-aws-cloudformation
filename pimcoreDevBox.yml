@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Create a Pimcore Admin tool box (optional), before the actual pimcore stack is created."
+Description: Create a Pimcore Admin tool box (optional), before the actual pimcore stack is created.
+             Please not that this template is not optimized for the security concerns of your company.
 Parameters:
   Prefix:
     Type: String
@@ -16,6 +17,7 @@ Parameters:
     Type: String
     Default: false
     Description: Name of your (root) test domain, such as "pimcore.xyz", when *.pimcore.xyz should be hosted.
+                 For multiple projects, extend the template, or create additional certificats manually.
 
 Conditions:
   CreateEcr: !Not [ !Equals [ !Ref EcrRepositoryName, "false" ]]
@@ -172,11 +174,13 @@ Resources:
   DomainWildcardCertificate:
     Condition: CreateWildcardCertificate
     Type: AWS::CertificateManager::Certificate
+    Description: Create a wildcard certificate. Do not forget to visit the Certificate Manager (https://eu-central-1.console.aws.amazon.com/acm/home to manually)
+      and manually trigger the validatio confirmation.
     Properties:
-      DomainName: !Ref WildcardCertificateDomainName
+      DomainName: !Sub '*.${WildcardCertificateDomainName}'
       DomainValidationOptions:
-        - DomainName: !Ref WildcardCertificateDomainName
-          ValidationDomain: !Ref WildcardCertificateDomainName
+        - DomainName: !Sub '*.${WildcardCertificateDomainName}'
+          ValidationDomain: !Sub '*.${WildcardCertificateDomainName}'
       ValidationMethod: DNS
 
 Outputs:
@@ -200,5 +204,7 @@ Outputs:
     Value: !Ref EcrRepository
   DomainWildcardCertificate:
     Description: "Wildcard Certificate that can be used across various applications within one domain range.
-    Particulary useful as AWS has a default limit of 20 contingents a year per account."
+    Particularly useful as AWS has a default limit of 20 contingents a year per account. If you are using
+    a wildcard certificate, switch to Resources, copy the ARN of the certificate, and use it as an input
+    for the creation of your Pimcore stack."
     Value: !Ref WildcardCertificateDomainName

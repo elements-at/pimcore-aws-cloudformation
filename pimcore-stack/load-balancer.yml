@@ -21,8 +21,6 @@ Parameters:
   ExistingCertificateARN:
     Type: String
     Default: false
-  CertificateValidationRole:
-    Type: String
 Conditions:
   InstallCertificate: !Equals [ !Ref ExistingCertificateARN, false ]
 

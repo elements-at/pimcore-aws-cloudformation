@@ -18,15 +18,46 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMFullAccess
         - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
-        - arn:aws:iam::aws:policy/IAMFullAccess
-        - arn:aws:iam::aws:policy/AWSCloudMapFullAccess
+        #        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AWSCloudMapFullAccess # Route 53 and service discovery?
         - arn:aws:iam::aws:policy/AmazonEC2FullAccess
         - arn:aws:iam::aws:policy/AmazonECS_FullAccess
         - arn:aws:iam::aws:policy/AWSLambdaFullAccess
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
         - arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
         - arn:aws:iam::aws:policy/AmazonRDSFullAccess
-        #- arn:aws:iam::aws:policy/SecretsManagerReadWrite
+      Policies:
+        # Restrict user to only access S3 bucket in current stack
+        - PolicyName: !Sub "${Prefix}-setupUserS3Access"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectACL
+                  - s3:PutObjectTagging
+                  - s3:DeleteObject
+                  - s3:RestoreObject
+                Resource: !Sub 'arn:aws:s3:::${Prefix}/*'
+              - Effect: Allow
+                Action:
+                  - 's3:ListBucket'
+                Resource: !Sub 'arn:aws:s3:::${Prefix}'
+
+        - PolicyName: !Sub "${Prefix}-setupUserEc2Access"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeSubnets
+                Resource: !Sub 'arn:aws:s3:::${Prefix}/*'
+              - Effect: Allow
+                Action:
+                  - 's3:ListBucket'
+                Resource: !Sub 'arn:aws:s3:::${Prefix}'
   AddSetupUserToGroup:
     Type: 'AWS::IAM::UserToGroupAddition'
     DependsOn: SetupUserGroup
@@ -42,8 +73,8 @@ Resources:
   SetupUserPolicy:
     Type: 'AWS::IAM::Policy'
     DependsOn:
-        - SetupUserGroup
-        - SetupUser
+      - SetupUserGroup
+      - SetupUser
     Properties:
       PolicyName: !Sub '${Prefix}-SetupUserPolicy'
       PolicyDocument:
@@ -88,16 +119,16 @@ Resources:
     Properties:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMFullAccess
-        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
-        - arn:aws:iam::aws:policy/IAMFullAccess
-        - arn:aws:iam::aws:policy/AWSCloudMapFullAccess
+        # - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+        # - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AWSCloudMapFullAccess # for Route 53 routing and service discovery?
         - arn:aws:iam::aws:policy/AmazonEC2FullAccess
         - arn:aws:iam::aws:policy/AmazonECS_FullAccess
         - arn:aws:iam::aws:policy/AWSLambdaFullAccess
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
         #- arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
         #- arn:aws:iam::aws:policy/AmazonRDSFullAccess
-        - arn:aws:iam::aws:policy/CloudWatchFullAccess #import for the creation of the log group
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess #important for the creation of the log group
       AssumeRolePolicyDocument:
         Statement:
           Effect: Allow
@@ -110,7 +141,7 @@ Resources:
           Action:
             - sts:AssumeRole
       Policies:
-        - PolicyName: PimcoreDeployerSecretsManagerWriteAccess # read access to secrets of the app's namespace
+        - PolicyName: PimcoreDeployerSecretsManagerReadAccess # read access to secrets of the app's namespace
           PolicyDocument:
             Version: 2012-10-17
             Statement:

@@ -30,11 +30,8 @@ Parameters:
     Description: Pass a wildcard certificate or a preparte subdomain certificate. If missing, you need to switch to https://console.aws.amazon.com/route53 and validate the certificate manually while the stack is built.
     Default: false
 
-  # todo pass setupUserARN and connect it with bastion host + S3 ?
-  # todo validated wildcard certificate for load balancer?
   # todo cognito protection?
   # CognitoProtection: true/false
-  #
 
 Resources:
 
@@ -88,7 +85,6 @@ Resources:
         Subnet2: !GetAtt PimcoreVPC.Outputs.PublicSubnet2
         SecurityGroup1: !GetAtt PimcoreVPC.Outputs.SecurityGroup1
         ExistingCertificateARN: !Ref ExistingCertificateARN
-        CertificateValidationRole: !GetAtt PimcoreUsers.Outputs.EcsContainerTaskExecutionRole
 
   PimcoreElastiCacheInstancesStack:
     Type: AWS::CloudFormation::Stack

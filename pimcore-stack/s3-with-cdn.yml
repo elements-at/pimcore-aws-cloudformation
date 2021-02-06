@@ -83,12 +83,12 @@ Resources:
               - s3:RestoreObject
             Resource:
               - !Sub ${S3Bucket.Arn}/*
-              - !Sub ${S3Bucket.Arn}
+              #- !Sub ${S3Bucket.Arn}
           - Sid: S3ListAction
             Effect: Allow
             Action: s3:ListBucket
             Resource:
-              - !Sub ${S3Bucket.Arn}/*
+              #- !Sub ${S3Bucket.Arn}/*
               - !Sub ${S3Bucket.Arn}
 
   CDNOriginAccessId:
