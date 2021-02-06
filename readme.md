@@ -1,7 +1,7 @@
 # Pimcore AWS Cloudformation Template
 
-This repository provides a AWS cloud formation (CFN) template with nested stacks to spin up a complete Pimcore application stack in ECS.
-An additional CFN template is provided to simplify remote installation of CFN and resources.
+This repository provides a AWS cloud formation (CFN) template with nested stacks to spin up a complete Pimcore 
+application stack for ECS. An additional CFN template is provided to simplify remote installation of CFN and resources.
 
 Nested Stacks:
  - ``Users`` IAM users for setup and ECS task execution.
